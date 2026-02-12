@@ -13,13 +13,8 @@ API_KEY = os.getenv("TMDB_API_KEY")
 BASE_URL = "https://api.themoviedb.org/3"
 
 # ── DB CONFIG ───────────────────────────────
-DB_CONFIG = {
-    "dbname": os.getenv("DB_NAME", "imdb"),
-    "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": os.getenv("DB_PORT", "5432")
-}
+# Use Neon DB connection string
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # ══════════════════════════════════════════════
 # API FETCH FUNCTIONS
@@ -308,7 +303,7 @@ def add_popular_movies(pages=1):
     if not API_KEY:
         raise RuntimeError("TMDB_API_KEY not set. Please check your .env file.")
 
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
     try:
@@ -342,7 +337,7 @@ def add_movie_by_id(movie_id):
     if not API_KEY:
         raise RuntimeError("TMDB_API_KEY not set. Please check your .env file.")
 
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
     try:

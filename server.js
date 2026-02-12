@@ -3,13 +3,23 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 const app = express();
-
 // Database connection
+// Neon DB uses a connection string format
 const pool = new Pool({
-    host: process.env.DB_HOST || 'localhost',
-    database: process.env.DB_NAME || 'imdb',
-    user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.DATABASE_URL ? {
+        rejectUnauthorized: false
+    } : false
+});
+
+// Test connection on startup
+pool.connect((err, client, release) => {
+    if (err) {
+        console.error('❌ Database connection error:', err.message);
+    } else {
+        console.log('✅ Connected to Neon DB successfully');
+        release();
+    }
 });
 
 // GET all movies

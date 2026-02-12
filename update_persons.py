@@ -9,13 +9,8 @@ API_KEY = os.getenv("TMDB_API_KEY")
 BASE_URL = "https://api.themoviedb.org/3"
 YOUTUBE_BASE = "https://www.youtube.com/watch?v="
 
-DB_CONFIG = {
-    "dbname": os.getenv("DB_NAME", "imdb"),
-    "user": os.getenv("DB_USER", "postgres"),
-    "password": os.getenv("DB_PASSWORD"),
-    "host": os.getenv("DB_HOST", "localhost"),
-    "port": os.getenv("DB_PORT", "5432")
-}
+# Use Neon DB connection string
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 # ══════════════════════════════════════════════
@@ -196,7 +191,7 @@ def update_studio_details(cur):
 # ══════════════════════════════════════════════
 
 def main():
-    conn = psycopg2.connect(**DB_CONFIG)
+    conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
     print("=" * 50)
