@@ -1,0 +1,33 @@
+import { Link, Route, Routes } from 'react-router-dom'
+import './App.css'
+import MoviesPage from './pages/MoviesPage'
+import MovieDetailsPage from './pages/MovieDetailsPage'
+import SearchPage from './pages/SearchPage'
+import TVShowsPage from './pages/TVShowsPage'
+import TVShowDetailsPage from './pages/TVShowDetailsPage'
+
+function App() {
+  return (
+    <div className="app">
+      <header className="hero">
+        <h1>Cholochitro Bhandar</h1>
+        <p>Latest movies from your Neon database</p>
+        <nav className="nav">
+          <Link to="/movies">Movies</Link>
+          <Link to="/tvshows">TV Shows</Link>
+          <Link to="/search">Search</Link>
+        </nav>
+      </header>
+      <Routes>
+        <Route path="/" element={<MoviesPage />} />
+        <Route path="/movies" element={<MoviesPage />} />
+        <Route path="/movies/:id" element={<MovieDetailsPage />} />
+        <Route path="/tvshows" element={<TVShowsPage />} />
+        <Route path="/tvshows/:id" element={<TVShowDetailsPage />} />
+        <Route path="/search" element={<SearchPage />} />
+      </Routes>
+    </div>
+  )
+}
+
+export default App
