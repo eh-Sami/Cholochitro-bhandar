@@ -9,15 +9,26 @@ const getPosterUrl = (posterPath) => {
     return `${POSTER_BASE}${posterPath}`
 }
 
-function TVShowsList() {
+function TVShowsList({
+    sectionTitle = 'Trending TV Shows',
+    limit = 12,
+    queryParams = {},
+    emptyMessage = 'No TV shows found.'
+}) {
     const [shows, setShows] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const queryKey = JSON.stringify(queryParams)
 
     useEffect(() => {
         const fetchShows = async () => {
             try {
-                const response = await fetch(`${API_BASE}/tvshows?page=1&limit=12`)
+                const params = new URLSearchParams({
+                    page: '1',
+                    limit: String(limit),
+                    ...queryParams
+                })
+                const response = await fetch(`${API_BASE}/tvshows?${params.toString()}`)
                 if (!response.ok) {
                     throw new Error('Failed to fetch TV shows')
                 }
@@ -31,16 +42,20 @@ function TVShowsList() {
         }
 
         fetchShows()
-    }, [])
+    }, [limit, queryKey])
 
     return (
         <section className="panel">
-            <h2>Trending TV Shows</h2>
+            {sectionTitle ? <h2>{sectionTitle}</h2> : null}
 
             {loading && <p className="status">Loading TV shows...</p>}
             {error && <p className="status error">{error}</p>}
 
-            {!loading && !error && (
+            {!loading && !error && shows.length === 0 && (
+                <p className="status">{emptyMessage}</p>
+            )}
+
+            {!loading && !error && shows.length > 0 && (
                 <div className="grid">
                     {shows.map((show) => (
                         <Link className="card-link" to={`/tvshows/${show.mediaid}`} key={show.mediaid}>

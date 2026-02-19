@@ -9,15 +9,26 @@ const getPosterUrl = (posterPath) => {
     return `${POSTER_BASE}${posterPath}`
 }
 
-function MoviesList() {
+function MoviesList({
+    sectionTitle = 'Now Playing',
+    limit = 12,
+    queryParams = {},
+    emptyMessage = 'No movies found.'
+}) {
     const [movies, setMovies] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const queryKey = JSON.stringify(queryParams)
 
     useEffect(() => {
         const fetchMovies = async () => {
             try {
-                const response = await fetch(`${API_BASE}/movies?page=1&limit=12`)
+                const params = new URLSearchParams({
+                    page: '1',
+                    limit: String(limit),
+                    ...queryParams
+                })
+                const response = await fetch(`${API_BASE}/movies?${params.toString()}`)
                 if (!response.ok) {
                     throw new Error('Failed to fetch movies')
                 }
@@ -31,16 +42,20 @@ function MoviesList() {
         }
 
         fetchMovies()
-    }, [])
+    }, [limit, queryKey])
 
     return (
         <section className="panel">
-            <h2>Now Playing</h2>
+            {sectionTitle ? <h2>{sectionTitle}</h2> : null}
 
             {loading && <p className="status">Loading movies...</p>}
             {error && <p className="status error">{error}</p>}
 
-            {!loading && !error && (
+            {!loading && !error && movies.length === 0 && (
+                <p className="status">{emptyMessage}</p>
+            )}
+
+            {!loading && !error && movies.length > 0 && (
                 <div className="grid">
                     {movies.map((movie) => (
                         <Link className="card-link" to={`/movies/${movie.mediaid}`} key={movie.mediaid}>
