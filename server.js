@@ -65,26 +65,85 @@ app.get('/', (req, res) => {
 // GET all movies
 app.get('/movies', async (req, res) => {
     try {
-        // Get pagination params from query string
-        const page = parseInt(req.query.page) || 1;  // Default page 1
-        const limit = parseInt(req.query.limit) || 20; // Default 20 per page
-
-        // Calculate offset (skip this many rows)
-        // page 1: offset 0
-        // page 2: offset 20
-        // page 3: offset 40
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
         const offset = (page - 1) * limit;
+        const genre = req.query.genre;
+        const year = req.query.year;
+        const minRating = req.query.minRating;
+        const period = req.query.period;
+        const sort = req.query.sort || 'rating';
 
-        // Query with LIMIT and OFFSET
-        const result = await pool.query(
-            'SELECT * FROM Media WHERE MediaType = \'Movie\' LIMIT $1 OFFSET $2',
-            [limit, offset]
-        );
+        const currentYear = new Date().getFullYear();
 
-        // Get total count of all movies
-        const countResult = await pool.query(
-            'SELECT COUNT(*) as total FROM Media WHERE MediaType = \'Movie\''
-        );
+        let query = `
+            SELECT m.*
+            FROM Media m
+            LEFT JOIN Media_Genre mg ON m.MediaID = mg.MediaID
+            LEFT JOIN Genre g ON mg.GenreID = g.GenreID
+            WHERE m.MediaType = 'Movie'
+        `;
+
+        let countQuery = `
+            SELECT COUNT(DISTINCT m.MediaID) as total
+            FROM Media m
+            LEFT JOIN Media_Genre mg ON m.MediaID = mg.MediaID
+            LEFT JOIN Genre g ON mg.GenreID = g.GenreID
+            WHERE m.MediaType = 'Movie'
+        `;
+
+        const conditions = [];
+        const params = [];
+        const countParams = [];
+
+        if (genre) {
+            conditions.push(`g.GenreName = $${params.length + 1}`);
+            params.push(genre);
+            countParams.push(genre);
+        }
+
+        if (year) {
+            conditions.push(`m.ReleaseYear = $${params.length + 1}`);
+            params.push(parseInt(year));
+            countParams.push(parseInt(year));
+        }
+
+        if (period === 'year') {
+            conditions.push(`m.ReleaseYear = $${params.length + 1}`);
+            params.push(currentYear);
+            countParams.push(currentYear);
+        }
+
+        if (minRating) {
+            conditions.push(`m.Rating >= $${params.length + 1}`);
+            params.push(parseFloat(minRating));
+            countParams.push(parseFloat(minRating));
+        }
+
+        if (conditions.length > 0) {
+            const wherePart = conditions.join(' AND ');
+            query += ` AND ${wherePart}`;
+            countQuery += ` AND ${wherePart}`;
+        }
+
+        query += ' GROUP BY m.MediaID';
+
+        if (sort === 'year') {
+            query += ' ORDER BY m.ReleaseYear DESC NULLS LAST, m.Rating DESC NULLS LAST';
+        } else if (sort === 'title') {
+            query += ' ORDER BY m.Title ASC';
+        } else {
+            query += ' ORDER BY m.Rating DESC NULLS LAST, m.ReleaseYear DESC NULLS LAST';
+        }
+
+        query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        params.push(limit, offset);
+
+        const [result, countResult] = await Promise.all([
+            pool.query(query, params),
+            pool.query(countQuery, countParams)
+        ]);
+
         const total = parseInt(countResult.rows[0].total);
 
         res.json({
@@ -165,7 +224,7 @@ app.get('/movies/:id', async (req, res) => {
 
         // 5. Get studios/production companies
         const studioQuery = `
-            SELECT s.StudioID, s.StudioName, s.LogoURL
+            SELECT s.StudioID, s.StudioName, s.LogoURL, s.WebsiteURL
             FROM Studio s
             JOIN Production p ON s.StudioID = p.StudioID
             WHERE p.MediaID = $1
@@ -212,21 +271,86 @@ app.get('/movies/:id', async (req, res) => {
 // GET all TV shows
 app.get('/tvshows', async (req, res) => {
     try {
-        // Get pagination params from query string
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const offset = (page - 1) * limit;
+        const genre = req.query.genre;
+        const year = req.query.year;
+        const minRating = req.query.minRating;
+        const sort = req.query.sort || 'rating';
+        const ongoing = req.query.ongoing;
 
-        // Query with LIMIT and OFFSET
-        const result = await pool.query(
-            'SELECT * FROM Media WHERE MediaType = \'TVSeries\' LIMIT $1 OFFSET $2',
-            [limit, offset]
-        );
+        let query = `
+            SELECT m.*, tv.IsOngoing, tv.NumberOfSeasons
+            FROM Media m
+            JOIN TVSeries tv ON m.MediaID = tv.MediaID
+            LEFT JOIN Media_Genre mg ON m.MediaID = mg.MediaID
+            LEFT JOIN Genre g ON mg.GenreID = g.GenreID
+            WHERE m.MediaType = 'TVSeries'
+        `;
 
-        // Get total count
-        const countResult = await pool.query(
-            'SELECT COUNT(*) as total FROM Media WHERE MediaType = \'TVSeries\''
-        );
+        let countQuery = `
+            SELECT COUNT(DISTINCT m.MediaID) as total
+            FROM Media m
+            JOIN TVSeries tv ON m.MediaID = tv.MediaID
+            LEFT JOIN Media_Genre mg ON m.MediaID = mg.MediaID
+            LEFT JOIN Genre g ON mg.GenreID = g.GenreID
+            WHERE m.MediaType = 'TVSeries'
+        `;
+
+        const conditions = [];
+        const params = [];
+        const countParams = [];
+
+        if (genre) {
+            conditions.push(`g.GenreName = $${params.length + 1}`);
+            params.push(genre);
+            countParams.push(genre);
+        }
+
+        if (year) {
+            conditions.push(`m.ReleaseYear = $${params.length + 1}`);
+            params.push(parseInt(year));
+            countParams.push(parseInt(year));
+        }
+
+        if (minRating) {
+            conditions.push(`m.Rating >= $${params.length + 1}`);
+            params.push(parseFloat(minRating));
+            countParams.push(parseFloat(minRating));
+        }
+
+        if (ongoing === 'true' || ongoing === 'false') {
+            conditions.push(`tv.IsOngoing = $${params.length + 1}`);
+            const ongoingValue = ongoing === 'true';
+            params.push(ongoingValue);
+            countParams.push(ongoingValue);
+        }
+
+        if (conditions.length > 0) {
+            const wherePart = conditions.join(' AND ');
+            query += ` AND ${wherePart}`;
+            countQuery += ` AND ${wherePart}`;
+        }
+
+        query += ' GROUP BY m.MediaID, tv.IsOngoing, tv.NumberOfSeasons';
+
+        if (sort === 'year') {
+            query += ' ORDER BY m.ReleaseYear DESC NULLS LAST, m.Rating DESC NULLS LAST';
+        } else if (sort === 'title') {
+            query += ' ORDER BY m.Title ASC';
+        } else {
+            query += ' ORDER BY m.Rating DESC NULLS LAST, m.ReleaseYear DESC NULLS LAST';
+        }
+
+        query += ` LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
+        params.push(limit, offset);
+
+        const [result, countResult] = await Promise.all([
+            pool.query(query, params),
+            pool.query(countQuery, countParams)
+        ]);
+
         const total = parseInt(countResult.rows[0].total);
 
         res.json({
@@ -244,6 +368,83 @@ app.get('/tvshows', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Failed to fetch TV shows'
+        });
+    }
+});
+
+// GET all genres with optional media type filter
+app.get('/genres', async (req, res) => {
+    try {
+        const type = req.query.type;
+        const params = [];
+
+        let query = `
+            SELECT
+                g.GenreID,
+                g.GenreName,
+                COUNT(DISTINCT m.MediaID) as title_count
+            FROM Genre g
+            JOIN Media_Genre mg ON g.GenreID = mg.GenreID
+            JOIN Media m ON mg.MediaID = m.MediaID
+        `;
+
+        if (type === 'Movie' || type === 'TVSeries') {
+            query += ' WHERE m.MediaType = $1';
+            params.push(type);
+        }
+
+        query += `
+            GROUP BY g.GenreID, g.GenreName
+            ORDER BY title_count DESC, g.GenreName ASC
+        `;
+
+        const result = await pool.query(query, params);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('Error fetching genres:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch genres'
+        });
+    }
+});
+
+// GET top actors by number of titles
+app.get('/actors/top', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 10;
+
+        const query = `
+            SELECT
+                p.PersonID,
+                p.FullName,
+                p.Picture,
+                COUNT(DISTINCT c.MediaID) as title_count,
+                ROUND(AVG(m.Rating), 1) as avg_rating
+            FROM Person p
+            JOIN Crew c ON p.PersonID = c.PersonID
+            JOIN Media m ON c.MediaID = m.MediaID
+            WHERE c.CrewRole = 'Actor'
+            GROUP BY p.PersonID, p.FullName, p.Picture
+            ORDER BY title_count DESC, avg_rating DESC NULLS LAST
+            LIMIT $1
+        `;
+
+        const result = await pool.query(query, [limit]);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('Error fetching top actors:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch top actors'
         });
     }
 });
@@ -305,7 +506,7 @@ app.get('/tvshows/:id', async (req, res) => {
 
         // 5. Get studios/networks
         const studioQuery = `
-            SELECT s.StudioID, s.StudioName, s.LogoURL
+            SELECT s.StudioID, s.StudioName, s.LogoURL, s.WebsiteURL
             FROM Studio s
             JOIN Production p ON s.StudioID = p.StudioID
             WHERE p.MediaID = $1
@@ -363,6 +564,153 @@ app.get('/tvshows/:id', async (req, res) => {
         res.status(500).json({
             success: false,
             error: 'Failed to fetch TV show details'
+        });
+    }
+});
+
+// GET search persons - Search for actors, directors, and crew
+app.get('/persons/search', async (req, res) => {
+    try {
+        // Get search query from URL
+        const query = req.query.q;
+
+        // Validate search query exists
+        if (!query || query.trim().length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: 'Search query (q) is required'
+            });
+        }
+
+        // Get pagination params
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
+
+        // Search persons by name and count their filmography
+        const searchQuery = `
+            SELECT 
+                p.PersonID,
+                p.FullName,
+                p.Picture,
+                p.Biography,
+                COUNT(DISTINCT c.MediaID) as title_count
+            FROM Person p
+            LEFT JOIN Crew c ON p.PersonID = c.PersonID
+            WHERE p.FullName ILIKE $1
+            GROUP BY p.PersonID, p.FullName, p.Picture, p.Biography
+            ORDER BY p.FullName ASC
+            LIMIT $2 OFFSET $3
+        `;
+
+        // Count total results
+        const countQuery = `
+            SELECT COUNT(DISTINCT p.PersonID) as total
+            FROM Person p
+            WHERE p.FullName ILIKE $1
+        `;
+
+        const searchPattern = `%${query}%`;  // Add wildcards for partial matching
+        
+        const [result, countResult] = await Promise.all([
+            pool.query(searchQuery, [searchPattern, limit, offset]),
+            pool.query(countQuery, [searchPattern])
+        ]);
+
+        const total = parseInt(countResult.rows[0].total);
+
+        res.json({
+            success: true,
+            query: query,
+            data: result.rows,
+            pagination: {
+                page: page,
+                limit: limit,
+                total: total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+
+    } catch (error) {
+        console.error('Error searching persons:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Person search failed'
+        });
+    }
+});
+
+// GET person details by ID
+app.get('/persons/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const query = `
+            SELECT
+                PersonID,
+                FullName,
+                Picture,
+                Biography,
+                Nationality,
+                DateOfBirth
+            FROM Person
+            WHERE PersonID = $1
+        `;
+
+        const result = await pool.query(query, [id]);
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Person not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Error fetching person:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch person'
+        });
+    }
+});
+
+// GET person filmography
+app.get('/persons/:id/filmography', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const query = `
+            SELECT
+                m.MediaID,
+                m.Title,
+                m.ReleaseYear,
+                m.Rating,
+                m.Poster,
+                m.MediaType,
+                c.CrewRole,
+                c.CharacterName
+            FROM Media m
+            JOIN Crew c ON m.MediaID = c.MediaID
+            WHERE c.PersonID = $1
+            ORDER BY m.ReleaseYear DESC NULLS LAST, m.Title
+        `;
+
+        const result = await pool.query(query, [id]);
+
+        res.json({
+            success: true,
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('Error fetching filmography:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch filmography'
         });
     }
 });
