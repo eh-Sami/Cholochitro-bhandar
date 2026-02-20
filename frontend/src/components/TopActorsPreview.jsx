@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 const API_BASE = 'http://localhost:3000'
 const PROFILE_BASE = 'https://image.tmdb.org/t/p/w185'
@@ -46,7 +47,11 @@ function TopActorsPreview({ limit = 8 }) {
             {!loading && !error && actors.length > 0 && (
                 <div className="actor-grid">
                     {actors.map((actor) => (
-                        <article className="actor-card" key={actor.personid}>
+                        <Link
+                            className="actor-card"
+                            to={`/persons/${actor.personid}`}
+                            key={actor.personid}
+                        >
                             {getProfileUrl(actor.picture) ? (
                                 <img
                                     className="actor-pic"
@@ -60,7 +65,7 @@ function TopActorsPreview({ limit = 8 }) {
                             <h4>{actor.fullname}</h4>
                             <p>{actor.title_count} titles</p>
                             <span>Avg rating: {actor.avg_rating || 'N/A'}</span>
-                        </article>
+                        </Link>
                     ))}
                 </div>
             )}

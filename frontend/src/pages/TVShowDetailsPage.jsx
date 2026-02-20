@@ -11,6 +11,19 @@ const getPosterUrl = (posterPath) => {
 
 const PROFILE_BASE = 'https://image.tmdb.org/t/p/w185'
 const getProfileUrl = (profilePath) => (profilePath ? `${PROFILE_BASE}${profilePath}` : null)
+const STUDIO_LOGO_BASE = 'https://image.tmdb.org/t/p/w300'
+
+const getStudioLogoUrl = (logoPath) => {
+    if (!logoPath) return null
+    if (logoPath.startsWith('http://') || logoPath.startsWith('https://')) return logoPath
+    return `${STUDIO_LOGO_BASE}${logoPath}`
+}
+
+const getStudioWebsiteUrl = (websiteUrl) => {
+    if (!websiteUrl) return null
+    if (websiteUrl.startsWith('http://') || websiteUrl.startsWith('https://')) return websiteUrl
+    return `https://${websiteUrl}`
+}
 
 const getYouTubeEmbedUrl = (trailerUrl) => {
     if (!trailerUrl) return null
@@ -225,7 +238,47 @@ function TVShowDetailsPage() {
                     {show.studios?.length > 0 && (
                         <div className="detail-section">
                             <h3>Studios</h3>
-                            <p>{show.studios.map((s) => s.studioname).join(', ')}</p>
+                            <div className="studios-grid">
+                                {show.studios.map((studio) => {
+                                    const logoUrl = getStudioLogoUrl(studio.logourl)
+                                    const websiteUrl = getStudioWebsiteUrl(studio.websiteurl)
+
+                                    const content = logoUrl ? (
+                                        <img
+                                            src={logoUrl}
+                                            alt={studio.studioname}
+                                            className="studio-logo"
+                                            title={studio.studioname}
+                                            loading="lazy"
+                                        />
+                                    ) : (
+                                        <div className="studio-logo placeholder">
+                                            {studio.studioname}
+                                        </div>
+                                    )
+
+                                    if (websiteUrl) {
+                                        return (
+                                            <a
+                                                key={studio.studioid}
+                                                className="studio-card studio-link"
+                                                href={websiteUrl}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                title={`Visit ${studio.studioname}`}
+                                            >
+                                                {content}
+                                            </a>
+                                        )
+                                    }
+
+                                    return (
+                                        <div key={studio.studioid} className="studio-card">
+                                            {content}
+                                        </div>
+                                    )
+                                })}
+                            </div>
                         </div>
                     )}
 
