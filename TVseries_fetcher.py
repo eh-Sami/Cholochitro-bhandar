@@ -149,8 +149,8 @@ def insert_episode(cursor, tv_id, season_no, episode):
     
     query = """
     INSERT INTO Episode 
-    (MediaID, SeasonNo, EpisodeNo, EpisodeTitle, Duration, AvgRating)
-    VALUES (%s, %s, %s, %s, %s, %s)
+    (MediaID, SeasonNo, EpisodeNo, EpisodeTitle, Description, Duration, AvgRating, StillPath)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     ON CONFLICT (MediaID, SeasonNo, EpisodeNo) DO NOTHING;
     """
     cursor.execute(query, (
@@ -158,8 +158,10 @@ def insert_episode(cursor, tv_id, season_no, episode):
         season_no,
         episode.get("episode_number"),
         episode.get("name"),
+        episode.get("overview"),
         runtime,
-        episode.get("vote_average")
+        episode.get("vote_average"),
+        episode.get("still_path")
     ))
 
 

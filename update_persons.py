@@ -53,6 +53,18 @@ def fetch_season_videos(tv_id, season_number):
         return []
 
 
+def fetch_season_details(tv_id, season_number):
+    """Fetch season details including episodes with still images"""
+    url = f"{BASE_URL}/tv/{tv_id}/season/{season_number}"
+    params = {"api_key": API_KEY}
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        return response.json()
+    except Exception:
+        return None
+
+
 def fetch_company_details(company_id):
     """Fetch studio/company details from TMDB"""
     url = f"{BASE_URL}/company/{company_id}"
@@ -186,6 +198,48 @@ def update_studio_details(cur):
     print(f"  → Updated {updated}/{len(studios)} studios\n")
 
 
+def update_episode_stills(cur):
+    """Update StillPath and Description for all episodes missing them"""
+    cur.execute("""
+        SELECT DISTINCT MediaID, SeasonNo FROM Episode 
+        WHERE StillPath IS NULL OR Description IS NULL
+        ORDER BY MediaID, SeasonNo
+    """)
+    seasons = cur.fetchall()
+    print(f"🖼️ Updating episode stills & descriptions ({len(seasons)} seasons to fetch)...")
+
+    updated = 0
+    total_episodes = 0
+    for i, (media_id, season_no) in enumerate(seasons, 1):
+        print(f"  [{i}/{len(seasons)}] MediaID {media_id} Season {season_no}...", end=" ")
+        season_data = fetch_season_details(media_id, season_no)
+        if not season_data:
+            print("⚠️ Not found")
+            continue
+
+        episodes = season_data.get("episodes", [])
+        season_updated = 0
+        for ep in episodes:
+            still_path = ep.get("still_path")
+            overview = ep.get("overview")
+            ep_no = ep.get("episode_number")
+            if ep_no and (still_path or overview):
+                cur.execute("""
+                    UPDATE Episode 
+                    SET StillPath = COALESCE(StillPath, %s),
+                        Description = COALESCE(Description, %s)
+                    WHERE MediaID = %s AND SeasonNo = %s AND EpisodeNo = %s 
+                      AND (StillPath IS NULL OR Description IS NULL)
+                """, (still_path, overview, media_id, season_no, ep_no))
+                season_updated += cur.rowcount
+        
+        updated += season_updated
+        total_episodes += len(episodes)
+        print(f"✅ {season_updated} stills")
+
+    print(f"  → Updated {updated} episode stills across {len(seasons)} seasons\n")
+
+
 # ══════════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════════
@@ -198,10 +252,11 @@ def main():
     print("🔄 Updating all missing data from TMDB...")
     print("=" * 50)
 
-    update_persons(cur)
-    update_movie_trailers(cur)
-    update_season_trailers(cur)
-    update_studio_details(cur)
+    # update_persons(cur)
+    # update_movie_trailers(cur)
+    # update_season_trailers(cur)
+    # update_studio_details(cur)
+    update_episode_stills(cur)
 
     conn.commit()
 
