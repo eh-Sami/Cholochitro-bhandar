@@ -449,6 +449,85 @@ app.get('/actors/top', async (req, res) => {
     }
 });
 
+// GET TV show seasons and episodes
+app.get('/tvshows/:id/seasons', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const tvQuery = `
+            SELECT 
+                m.MediaID,
+                m.Title,
+                m.ReleaseYear,
+                m.Description,
+                m.Rating,
+                m.Poster,
+                m.LanguageName,
+                tv.IsOngoing,
+                tv.NumberOfSeasons
+            FROM Media m
+            JOIN TVSeries tv ON m.MediaID = tv.MediaID
+            WHERE m.MediaID = $1 AND m.MediaType = 'TVSeries'
+        `;
+
+        const seasonsQuery = `
+            SELECT 
+                SeasonNo,
+                SeasonTitle,
+                ReleaseDate,
+                Description,
+                AvgRating,
+                TrailerLink,
+                EpisodeCount
+            FROM Season
+            WHERE MediaID = $1
+            ORDER BY SeasonNo
+        `;
+
+        const episodesQuery = `
+            SELECT 
+                SeasonNo,
+                EpisodeNo,
+                EpisodeTitle,
+                Duration,
+                AvgRating
+            FROM Episode
+            WHERE MediaID = $1
+            ORDER BY SeasonNo, EpisodeNo
+        `;
+
+        const [tvResult, seasonsResult, episodesResult] = await Promise.all([
+            pool.query(tvQuery, [id]),
+            pool.query(seasonsQuery, [id]),
+            pool.query(episodesQuery, [id])
+        ]);
+
+        if (tvResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'TV show not found'
+            });
+        }
+
+        const tvShow = tvResult.rows[0];
+        tvShow.seasons = seasonsResult.rows.map((season) => ({
+            ...season,
+            episodes: episodesResult.rows.filter((ep) => ep.seasonno === season.seasonno)
+        }));
+
+        res.json({
+            success: true,
+            data: tvShow
+        });
+    } catch (error) {
+        console.error('Error fetching TV show seasons:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch TV show seasons'
+        });
+    }
+});
+
 // GET single TV show by ID with full details
 app.get('/tvshows/:id', async (req, res) => {
     try {
@@ -527,15 +606,29 @@ app.get('/tvshows/:id', async (req, res) => {
             ORDER BY SeasonNo
         `;
 
+        // 7. Get episodes for all seasons
+        const episodesQuery = `
+            SELECT 
+                SeasonNo,
+                EpisodeNo,
+                EpisodeTitle,
+                Duration,
+                AvgRating
+            FROM Episode
+            WHERE MediaID = $1
+            ORDER BY SeasonNo, EpisodeNo
+        `;
+
         // Execute all queries in parallel
-        const [tvResult, genreResult, castResult, crewResult, studioResult, seasonsResult] = 
+        const [tvResult, genreResult, castResult, crewResult, studioResult, seasonsResult, episodesResult] = 
             await Promise.all([
                 pool.query(tvQuery, [id]),
                 pool.query(genreQuery, [id]),
                 pool.query(castQuery, [id]),
                 pool.query(crewQuery, [id]),
                 pool.query(studioQuery, [id]),
-                pool.query(seasonsQuery, [id])
+                pool.query(seasonsQuery, [id]),
+                pool.query(episodesQuery, [id])
             ]);
 
         // Check if TV show exists
@@ -552,7 +645,12 @@ app.get('/tvshows/:id', async (req, res) => {
         tvShow.cast = castResult.rows;
         tvShow.crew = crewResult.rows;
         tvShow.studios = studioResult.rows;
-        tvShow.seasons = seasonsResult.rows;
+        
+        // Attach episodes to each season  
+        tvShow.seasons = seasonsResult.rows.map((season) => ({
+            ...season,
+            episodes: episodesResult.rows.filter(ep => ep.seasonno === season.seasonno)
+        }));
 
         res.json({
             success: true,
