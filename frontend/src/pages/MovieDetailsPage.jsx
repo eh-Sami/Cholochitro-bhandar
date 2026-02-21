@@ -107,62 +107,82 @@ function MovieDetailsPage() {
                 )}
                 <div className="detail-body">
                     <h2>{movie.title}</h2>
-                    <p className="detail-meta">
-                        {movie.releaseyear || '—'} · {movie.languagename || '—'}
-                    </p>
+                    <div className="detail-stack">
+                        <div className="detail-left-panel">
+                            {movie.genres?.length > 0 && (
+                                <div className="detail-section genres-large">
+                                    <h3>Genres</h3>
+                                    <div className="genre-chips">
+                                        {movie.genres.map((genre) => (
+                                            <span className="genre-chip" key={genre.genreid}>{genre.genrename}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
-                    <div className="detail-stats">
-                        <div className="stat-box">
-                            <span>Rating</span>
-                            <strong>⭐ {movie.rating || 'N/A'}</strong>
-                        </div>
-                        <div className="stat-box">
-                            <span>Runtime</span>
-                            <strong>{movie.duration ? `${movie.duration} min` : 'N/A'}</strong>
-                        </div>
-                        <div className="stat-box">
-                            <span>Top Rank</span>
-                            <strong>{rank ? `#${rank} / 200` : 'Outside Top 200'}</strong>
-                        </div>
-                    </div>
+                            <div className="detail-section detail-facts">
+                                <div className="detail-facts-grid detail-facts-row">
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">📅</span>
+                                        <span className="detail-fact-label">Release Year</span>
+                                        <strong className="detail-fact-value">{movie.releaseyear || '—'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">🌐</span>
+                                        <span className="detail-fact-label">Language</span>
+                                        <strong className="detail-fact-value">{movie.languagename || '—'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">⏱️</span>
+                                        <span className="detail-fact-label">Runtime</span>
+                                        <strong className="detail-fact-value">{movie.duration ? `${movie.duration} min` : 'N/A'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">⭐</span>
+                                        <span className="detail-fact-label">Rating</span>
+                                        <strong className="detail-fact-value">{movie.rating ? `⭐ ${movie.rating}` : 'N/A'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">🏆</span>
+                                        <span className="detail-fact-label">Top Rank</span>
+                                        <strong className="detail-fact-value">{rank ? `#${rank} / 200` : 'Outside Top 200'}</strong>
+                                    </div>
+                                </div>
+                            </div>
 
-                    <p className="detail-desc">{movie.description || 'No description available.'}</p>
+                            <div className="detail-section">
+                                <h3>Synopsis</h3>
+                                <p className="detail-desc detail-desc-large">
+                                    {movie.description || 'No description available.'}
+                                </p>
+                            </div>
 
-                    {movie.trailerlink && (
-                        <div className="detail-section trailer-section">
-                            <h3>Trailer</h3>
-                            <a
-                                className="btn btn-primary trailer-btn"
-                                href={movie.trailerlink}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                Watch Trailer
-                            </a>
-                            {trailerEmbedUrl && (
-                                <div className="trailer-frame-wrap">
-                                    <iframe
-                                        className="trailer-frame"
-                                        src={trailerEmbedUrl}
-                                        title={`${movie.title} trailer`}
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    />
+                            {movie.trailerlink && (
+                                <div className="detail-section trailer-section">
+                                    <h3>Trailer</h3>
+                                    <a
+                                        className="btn btn-primary trailer-btn"
+                                        href={movie.trailerlink}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        Watch Trailer
+                                    </a>
+                                    {trailerEmbedUrl && (
+                                        <div className="trailer-frame-wrap">
+                                            <iframe
+                                                className="trailer-frame"
+                                                src={trailerEmbedUrl}
+                                                title={`${movie.title} trailer`}
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
-                    )}
-
-                    {movie.genres?.length > 0 && (
-                        <div className="detail-section">
-                            <h3>Genres</h3>
-                            <div className="genre-chips">
-                                {movie.genres.map((genre) => (
-                                    <span className="genre-chip" key={genre.genreid}>{genre.genrename}</span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                    </div>
 
                     {movie.cast?.length > 0 && (
                         <div className="detail-section">
@@ -232,18 +252,22 @@ function MovieDetailsPage() {
                                     const logoUrl = getStudioLogoUrl(studio.logourl)
                                     const websiteUrl = getStudioWebsiteUrl(studio.websiteurl)
 
-                                    const content = logoUrl ? (
-                                        <img
-                                            src={logoUrl}
-                                            alt={studio.studioname}
-                                            className="studio-logo"
-                                            title={studio.studioname}
-                                            loading="lazy"
-                                        />
-                                    ) : (
-                                        <div className="studio-logo placeholder">
-                                            {studio.studioname}
-                                        </div>
+                                    const content = (
+                                        <>
+                                            {logoUrl ? (
+                                                <img
+                                                    src={logoUrl}
+                                                    alt={studio.studioname}
+                                                    className="studio-logo"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="studio-logo placeholder">
+                                                    No Logo
+                                                </div>
+                                            )}
+                                            <span className="studio-name">{studio.studioname}</span>
+                                        </>
                                     )
 
                                     if (websiteUrl) {

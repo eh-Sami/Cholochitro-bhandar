@@ -7,6 +7,7 @@ import PersonDetailsPage from './pages/PersonDetailsPage'
 import SearchPage from './pages/SearchPage'
 import TVShowsPage from './pages/TVShowsPage'
 import TVShowDetailsPage from './pages/TVShowDetailsPage'
+import TVShowSeasonsPage from './pages/TVShowSeasonsPage'
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
         <Route path="/persons/:id" element={<PersonDetailsPage />} />
         <Route path="/tvshows" element={<TVShowsPage />} />
         <Route path="/tvshows/:id" element={<TVShowDetailsPage />} />
+        <Route path="/tvshows/:id/seasons" element={<TVShowSeasonsPage />} />
         <Route path="/search" element={<SearchPage />} />
       </Routes>
     </div>

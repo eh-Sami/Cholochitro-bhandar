@@ -40,18 +40,13 @@ const getYouTubeEmbedUrl = (trailerUrl) => {
     }
 }
 
-const getSeriesTrailer = (show) => {
-    if (!show?.seasons || show.seasons.length === 0) return null
-    const withTrailer = show.seasons.find((season) => season.trailerlink)
-    return withTrailer?.trailerlink || null
-}
-
 function TVShowDetailsPage() {
     const { id } = useParams()
     const [show, setShow] = useState(null)
     const [rank, setRank] = useState(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const [selectedSeasonNo, setSelectedSeasonNo] = useState(null)
 
     useEffect(() => {
         const fetchShow = async () => {
@@ -84,6 +79,12 @@ function TVShowDetailsPage() {
         fetchShow()
     }, [id])
 
+    useEffect(() => {
+        if (show?.seasons?.length && selectedSeasonNo === null) {
+            setSelectedSeasonNo(show.seasons[0].seasonno)
+        }
+    }, [show, selectedSeasonNo])
+
     if (loading) {
         return <p className="status">Loading TV show...</p>
     }
@@ -96,8 +97,9 @@ function TVShowDetailsPage() {
         return <p className="status">TV show not found.</p>
     }
 
-    const trailerLink = getSeriesTrailer(show)
-    const trailerEmbedUrl = getYouTubeEmbedUrl(trailerLink)
+    const selectedSeason = show.seasons?.find((season) => season.seasonno === selectedSeasonNo)
+        || show.seasons?.[0]
+        || null
 
     return (
         <main className="page">
@@ -114,64 +116,147 @@ function TVShowDetailsPage() {
                 )}
                 <div className="detail-body">
                     <h2>{show.title}</h2>
-                    <p className="detail-meta">
-                        {show.releaseyear || '—'} · {show.languagename || '—'}
-                    </p>
+                    <div className="detail-stack">
+                        <div className="detail-left-panel">
+                            {show.genres?.length > 0 && (
+                                <div className="detail-section genres-large">
+                                    <h3>Genres</h3>
+                                    <div className="genre-chips">
+                                        {show.genres.map((genre) => (
+                                            <span className="genre-chip" key={genre.genreid}>{genre.genrename}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
-                    <div className="detail-stats">
-                        <div className="stat-box">
-                            <span>Rating</span>
-                            <strong>⭐ {show.rating || 'N/A'}</strong>
-                        </div>
-                        <div className="stat-box">
-                            <span>Status</span>
-                            <strong>{show.isongoing ? 'Ongoing' : 'Ended'}</strong>
-                        </div>
-                        <div className="stat-box">
-                            <span>Seasons</span>
-                            <strong>{show.numberofseasons || 0}</strong>
-                        </div>
-                        <div className="stat-box">
-                            <span>Top Rank</span>
-                            <strong>{rank ? `#${rank} / 200` : 'Outside Top 200'}</strong>
+                            <div className="detail-section detail-facts">
+                                <div className="detail-facts-grid detail-facts-row">
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">📅</span>
+                                        <span className="detail-fact-label">Release Year</span>
+                                        <strong className="detail-fact-value">{show.releaseyear || '—'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">🌐</span>
+                                        <span className="detail-fact-label">Language</span>
+                                        <strong className="detail-fact-value">{show.languagename || '—'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">📺</span>
+                                        <span className="detail-fact-label">Seasons</span>
+                                        <strong className="detail-fact-value">{show.numberofseasons || 0}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">📡</span>
+                                        <span className="detail-fact-label">Status</span>
+                                        <strong className="detail-fact-value">{show.isongoing ? 'Ongoing' : 'Ended'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">⭐</span>
+                                        <span className="detail-fact-label">Rating</span>
+                                        <strong className="detail-fact-value">{show.rating ? `⭐ ${show.rating}` : 'N/A'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">🏆</span>
+                                        <span className="detail-fact-label">Top Rank</span>
+                                        <strong className="detail-fact-value">{rank ? `#${rank} / 200` : 'Outside Top 200'}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="detail-section">
+                                <h3>Synopsis</h3>
+                                <p className="detail-desc detail-desc-large">
+                                    {show.description || 'No description available.'}
+                                </p>
+                            </div>
                         </div>
                     </div>
 
-                    <p className="detail-desc">{show.description || 'No description available.'}</p>
-
-                    {trailerLink && (
-                        <div className="detail-section trailer-section">
-                            <h3>Trailer</h3>
-                            <a
-                                className="btn btn-primary trailer-btn"
-                                href={trailerLink}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                Watch Trailer
-                            </a>
-                            {trailerEmbedUrl && (
-                                <div className="trailer-frame-wrap">
-                                    <iframe
-                                        className="trailer-frame"
-                                        src={trailerEmbedUrl}
-                                        title={`${show.title} trailer`}
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                        allowFullScreen
-                                    />
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {show.genres?.length > 0 && (
+                    {show.seasons?.length > 0 && (
                         <div className="detail-section">
-                            <h3>Genres</h3>
-                            <div className="genre-chips">
-                                {show.genres.map((genre) => (
-                                    <span className="genre-chip" key={genre.genreid}>{genre.genrename}</span>
-                                ))}
+                            <div className="season-header-row">
+                                <div className="season-picker">
+                                    <span className="season-label">Select season</span>
+                                    <div className="season-circles" role="tablist" aria-label="Select season">
+                                        {show.seasons.map((season) => (
+                                            <button
+                                                key={season.seasonno}
+                                                type="button"
+                                                className={`season-circle ${selectedSeason?.seasonno === season.seasonno ? 'active' : ''}`}
+                                                onClick={() => setSelectedSeasonNo(season.seasonno)}
+                                                aria-pressed={selectedSeason?.seasonno === season.seasonno}
+                                                title={`Season ${season.seasonno}`}
+                                            >
+                                                {season.seasonno}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
+
+                            {selectedSeason && (() => {
+                                const seasonTrailerUrl = getYouTubeEmbedUrl(selectedSeason.trailerlink)
+                                const episodeCount = selectedSeason.episodes?.length || selectedSeason.episodecount || 0
+                                const totalDuration = selectedSeason.episodes?.reduce((sum, ep) => sum + (ep.duration || 0), 0) || 0
+                                const avgDuration = episodeCount > 0 ? Math.round(totalDuration / episodeCount) : 0
+
+                                return (
+                                    <div className="season-panel">
+                                        <div className="season-panel-header">
+                                            <h4 className="season-panel-title">
+                                                Season {selectedSeason.seasonno}{selectedSeason.seasontitle ? `: ${selectedSeason.seasontitle}` : ''}
+                                            </h4>
+                                            <div className="season-stats">
+                                                {episodeCount > 0 && (
+                                                    <span className="season-episodes">{episodeCount} Episodes</span>
+                                                )}
+                                                {avgDuration > 0 && (
+                                                    <span className="season-duration">~{avgDuration} min/ep</span>
+                                                )}
+                                                {selectedSeason.avgrating && (
+                                                    <span className="season-rating">⭐ {selectedSeason.avgrating}</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {selectedSeason.releasedate && (
+                                            <p className="season-meta">Released: {new Date(selectedSeason.releasedate).toLocaleDateString()}</p>
+                                        )}
+
+                                        {selectedSeason.description && (
+                                            <p className="season-desc">{selectedSeason.description}</p>
+                                        )}
+
+                                        {selectedSeason.trailerlink && (
+                                            <div className="season-trailer">
+                                                <a
+                                                    className="btn btn-secondary btn-sm"
+                                                    href={selectedSeason.trailerlink}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    Watch Season Trailer
+                                                </a>
+                                                {seasonTrailerUrl && (
+                                                    <div className="trailer-frame-wrap">
+                                                        <iframe
+                                                            className="trailer-frame"
+                                                            src={seasonTrailerUrl}
+                                                            title={`Season ${selectedSeason.seasonno} trailer`}
+                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                            allowFullScreen
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
+                                            View episodes
+                                        </Link>
+                                    </div>
+                                )
+                            })()}
                         </div>
                     )}
 
@@ -243,18 +328,22 @@ function TVShowDetailsPage() {
                                     const logoUrl = getStudioLogoUrl(studio.logourl)
                                     const websiteUrl = getStudioWebsiteUrl(studio.websiteurl)
 
-                                    const content = logoUrl ? (
-                                        <img
-                                            src={logoUrl}
-                                            alt={studio.studioname}
-                                            className="studio-logo"
-                                            title={studio.studioname}
-                                            loading="lazy"
-                                        />
-                                    ) : (
-                                        <div className="studio-logo placeholder">
-                                            {studio.studioname}
-                                        </div>
+                                    const content = (
+                                        <>
+                                            {logoUrl ? (
+                                                <img
+                                                    src={logoUrl}
+                                                    alt={studio.studioname}
+                                                    className="studio-logo"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="studio-logo placeholder">
+                                                    No Logo
+                                                </div>
+                                            )}
+                                            <span className="studio-name">{studio.studioname}</span>
+                                        </>
                                     )
 
                                     if (websiteUrl) {
@@ -282,18 +371,6 @@ function TVShowDetailsPage() {
                         </div>
                     )}
 
-                    {show.seasons?.length > 0 && (
-                        <div className="detail-section">
-                            <h3>Seasons</h3>
-                            <ul>
-                                {show.seasons.map((season) => (
-                                    <li key={season.seasonno}>
-                                        Season {season.seasonno}: {season.seasontitle || 'Untitled'}
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
                 </div>
             </div>
         </main>
