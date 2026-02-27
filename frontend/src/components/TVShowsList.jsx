@@ -23,10 +23,11 @@ function TVShowsList({
     useEffect(() => {
         const fetchShows = async () => {
             try {
+                const parsedQueryParams = JSON.parse(queryKey)
                 const params = new URLSearchParams({
                     page: '1',
                     limit: String(limit),
-                    ...queryParams
+                    ...parsedQueryParams
                 })
                 const response = await fetch(`${API_BASE}/tvshows?${params.toString()}`)
                 if (!response.ok) {

@@ -269,7 +269,7 @@ function TVShowDetailsPage() {
                                 )
                             })()}
                         </div>
-                    </div>
+                    )}
 
                     {showRatingsModal && show.seasons?.some(s => s.episodes?.length > 0) && (
                         <div className="detail-section">
