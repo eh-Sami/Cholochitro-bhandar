@@ -14,7 +14,7 @@ function App() {
     <div className="app">
       <header className="hero">
         <h1><Link to="/">Cholochitro Bhandar</Link></h1>
-        <p>IMDb-style movie & TV discovery for your course project</p>
+        <p>IMDb-style movie & TV discovery</p>
         <nav className="nav">
           <Link to="/movies">Movies</Link>
           <Link to="/tvshows">TV Shows</Link>
