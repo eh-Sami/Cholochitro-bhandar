@@ -855,8 +855,7 @@
 
 .episode-item {
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  gap: 1rem;
   padding: 0.85rem 1rem;
   border: 1px solid #e2e6f0;
   border-radius: 10px;
@@ -933,35 +932,6 @@
   margin-top: 0.75rem;
   border-top: 1px solid #eef1f6;
   padding-top: 0.6rem;
-  display: flex;
-  gap: 1rem;
-}
-
-.episode-image-wrapper {
-  flex-shrink: 0;
-  width: 300px;
-}
-
-.episode-image {
-  width: 100%;
-  height: auto;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-  display: block;
-}
-
-.episode-details {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.episode-description {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: #344154;
 }
 
 .episode-actions {

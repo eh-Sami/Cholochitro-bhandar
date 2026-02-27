@@ -269,7 +269,7 @@ function TVShowDetailsPage() {
                                 )
                             })()}
                         </div>
-                    )}
+                    </div>
 
                     {showRatingsModal && show.seasons?.some(s => s.episodes?.length > 0) && (
                         <div className="detail-section">
@@ -328,6 +328,69 @@ function TVShowDetailsPage() {
                                     )
                                 })()}
                             </div>
+
+                            {selectedSeason && (() => {
+                                const seasonTrailerUrl = getYouTubeEmbedUrl(selectedSeason.trailerlink)
+                                const episodeCount = selectedSeason.episodes?.length || selectedSeason.episodecount || 0
+                                const totalDuration = selectedSeason.episodes?.reduce((sum, ep) => sum + (ep.duration || 0), 0) || 0
+                                const avgDuration = episodeCount > 0 ? Math.round(totalDuration / episodeCount) : 0
+
+                                return (
+                                    <div className="season-panel">
+                                        <div className="season-panel-header">
+                                            <h4 className="season-panel-title">
+                                                Season {selectedSeason.seasonno}{selectedSeason.seasontitle ? `: ${selectedSeason.seasontitle}` : ''}
+                                            </h4>
+                                            <div className="season-stats">
+                                                {episodeCount > 0 && (
+                                                    <span className="season-episodes">{episodeCount} Episodes</span>
+                                                )}
+                                                {avgDuration > 0 && (
+                                                    <span className="season-duration">~{avgDuration} min/ep</span>
+                                                )}
+                                                {selectedSeason.avgrating && (
+                                                    <span className="season-rating">⭐ {selectedSeason.avgrating}</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {selectedSeason.releasedate && (
+                                            <p className="season-meta">Released: {new Date(selectedSeason.releasedate).toLocaleDateString()}</p>
+                                        )}
+
+                                        {selectedSeason.description && (
+                                            <p className="season-desc">{selectedSeason.description}</p>
+                                        )}
+
+                                        {selectedSeason.trailerlink && (
+                                            <div className="season-trailer">
+                                                <a
+                                                    className="btn btn-secondary btn-sm"
+                                                    href={selectedSeason.trailerlink}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    Watch Season Trailer
+                                                </a>
+                                                {seasonTrailerUrl && (
+                                                    <div className="trailer-frame-wrap">
+                                                        <iframe
+                                                            className="trailer-frame"
+                                                            src={seasonTrailerUrl}
+                                                            title={`Season ${selectedSeason.seasonno} trailer`}
+                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                            allowFullScreen
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
+                                            View episodes
+                                        </Link>
+                                    </div>
+                                )
+                            })()}
                         </div>
                     )}
 
