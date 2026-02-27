@@ -47,6 +47,7 @@ function TVShowDetailsPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [selectedSeasonNo, setSelectedSeasonNo] = useState(null)
+    const [showRatingsModal, setShowRatingsModal] = useState(false)
 
     useEffect(() => {
         const fetchShow = async () => {
@@ -193,6 +194,139 @@ function TVShowDetailsPage() {
                                         ))}
                                     </div>
                                 </div>
+                            </div>
+
+                            {selectedSeason && (() => {
+                                const seasonTrailerUrl = getYouTubeEmbedUrl(selectedSeason.trailerlink)
+                                const episodeCount = selectedSeason.episodes?.length || selectedSeason.episodecount || 0
+                                const totalDuration = selectedSeason.episodes?.reduce((sum, ep) => sum + (ep.duration || 0), 0) || 0
+                                const avgDuration = episodeCount > 0 ? Math.round(totalDuration / episodeCount) : 0
+
+                                return (
+                                    <div className="season-panel">
+                                        <div className="season-panel-header">
+                                            <h4 className="season-panel-title">
+                                                Season {selectedSeason.seasonno}{selectedSeason.seasontitle ? `: ${selectedSeason.seasontitle}` : ''}
+                                            </h4>
+                                            <div className="season-stats">
+                                                {episodeCount > 0 && (
+                                                    <span className="season-episodes">{episodeCount} Episodes</span>
+                                                )}
+                                                {avgDuration > 0 && (
+                                                    <span className="season-duration">~{avgDuration} min/ep</span>
+                                                )}
+                                                {selectedSeason.avgrating && (
+                                                    <span className="season-rating">⭐ {selectedSeason.avgrating}</span>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {selectedSeason.releasedate && (
+                                            <p className="season-meta">Released: {new Date(selectedSeason.releasedate).toLocaleDateString()}</p>
+                                        )}
+
+                                        {selectedSeason.description && (
+                                            <p className="season-desc">{selectedSeason.description}</p>
+                                        )}
+
+                                        {selectedSeason.trailerlink && (
+                                            <div className="season-trailer">
+                                                <a
+                                                    className="btn btn-secondary btn-sm"
+                                                    href={selectedSeason.trailerlink}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    Watch Season Trailer
+                                                </a>
+                                                {seasonTrailerUrl && (
+                                                    <div className="trailer-frame-wrap">
+                                                        <iframe
+                                                            className="trailer-frame"
+                                                            src={seasonTrailerUrl}
+                                                            title={`Season ${selectedSeason.seasonno} trailer`}
+                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                            allowFullScreen
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        <div className="season-actions">
+                                            <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
+                                                View episodes
+                                            </Link>
+                                            {show.seasons?.some(s => s.episodes?.length > 0) && (
+                                                <button 
+                                                    className="btn btn-secondary btn-sm"
+                                                    onClick={() => setShowRatingsModal(!showRatingsModal)}
+                                                >
+                                                    📊 {showRatingsModal ? 'Hide' : 'Show'} Episode Ratings
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            })()}
+                        </div>
+                    </div>
+
+                    {showRatingsModal && show.seasons?.some(s => s.episodes?.length > 0) && (
+                        <div className="detail-section">
+                            <h3>Episode Ratings</h3>
+                            <div className="ratings-grid-container">
+                                {(() => {
+                                    // Filter seasons that have episodes
+                                    const seasonsWithEpisodes = show.seasons.filter(s => s.episodes && s.episodes.length > 0)
+                                    
+                                    if (seasonsWithEpisodes.length === 0) {
+                                        return <p style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>No episode ratings available.</p>
+                                    }
+                                    
+                                    const maxEpisodes = Math.max(...seasonsWithEpisodes.map(s => s.episodes.length))
+                                    
+                                    return (
+                                        <div className="ratings-grid">
+                                            {/* Header row with season numbers */}
+                                            <div className="ratings-grid-header">
+                                                <div className="ratings-grid-cell ratings-grid-season-label"></div>
+                                                {seasonsWithEpisodes.map((season) => (
+                                                    <div key={season.seasonno} className="ratings-grid-cell ratings-grid-ep-header">
+                                                        S{season.seasonno}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            
+                                            {/* Episode rows */}
+                                            {Array.from({ length: maxEpisodes }, (_, episodeIndex) => (
+                                                <div key={episodeIndex} className="ratings-grid-row">
+                                                    <div className="ratings-grid-cell ratings-grid-season-label">
+                                                        E{episodeIndex + 1}
+                                                    </div>
+                                                    {seasonsWithEpisodes.map((season) => {
+                                                        const episode = season.episodes[episodeIndex]
+                                                        if (!episode) {
+                                                            return <div key={season.seasonno} className="ratings-grid-cell ratings-grid-empty"></div>
+                                                        }
+                                                        const rating = parseFloat(episode.avgrating) || 0
+                                                        const bgColor = rating >= 9 ? '#f59e0b' : rating >= 7 ? '#fbbf24' : rating >= 5 ? '#fcd34d' : '#fef3c7'
+                                                        
+                                                        return (
+                                                            <div 
+                                                                key={season.seasonno} 
+                                                                className="ratings-grid-cell ratings-grid-rating"
+                                                                style={{ backgroundColor: bgColor }}
+                                                                title={`S${season.seasonno}E${episode.episodeno}: ${episode.episodetitle || 'Episode ' + episode.episodeno}`}
+                                                            >
+                                                                {rating > 0 ? rating.toFixed(1) : '—'}
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )
+                                })()}
                             </div>
 
                             {selectedSeason && (() => {

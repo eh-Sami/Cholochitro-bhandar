@@ -3,10 +3,16 @@ import { Link, useParams } from 'react-router-dom'
 
 const API_BASE = 'http://localhost:3000'
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w500'
+const STILL_BASE = 'https://image.tmdb.org/t/p/w300'
 
 const getPosterUrl = (posterPath) => {
     if (!posterPath) return null
     return `${POSTER_BASE}${posterPath}`
+}
+
+const getStillUrl = (stillPath) => {
+    if (!stillPath) return null
+    return `${STILL_BASE}${stillPath}`
 }
 
 const getYouTubeEmbedUrl = (trailerUrl) => {
@@ -204,16 +210,30 @@ function TVShowSeasonsPage() {
                                                                 </button>
                                                                 {isOpen && (
                                                                     <div className="episode-body">
-                                                                        <div className="episode-meta">
-                                                                            {episode.duration && (
-                                                                                <span className="episode-duration">⏱️ {episode.duration} min</span>
+                                                                        {episode.stillpath && (
+                                                                            <div className="episode-image-wrapper">
+                                                                                <img 
+                                                                                    className="episode-image" 
+                                                                                    src={getStillUrl(episode.stillpath)} 
+                                                                                    alt={episode.episodetitle || `Episode ${episode.episodeno}`}
+                                                                                />
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="episode-details">
+                                                                            <div className="episode-meta">
+                                                                                {episode.duration && (
+                                                                                    <span className="episode-duration">⏱️ {episode.duration} min</span>
+                                                                                )}
+                                                                                {episode.avgrating && (
+                                                                                    <span className="episode-rating">⭐ {episode.avgrating}</span>
+                                                                                )}
+                                                                            </div>
+                                                                            {episode.description && (
+                                                                                <p className="episode-description">{episode.description}</p>
                                                                             )}
-                                                                            {episode.avgrating && (
-                                                                                <span className="episode-rating">⭐ {episode.avgrating}</span>
-                                                                            )}
-                                                                        </div>
-                                                                        <div className="episode-actions">
-                                                                            <span className="episode-note">Reviews and ratings coming soon.</span>
+                                                                            <div className="episode-actions">
+                                                                                <span className="episode-note">Reviews and ratings coming soon.</span>
+                                                                            </div>
                                                                         </div>
                                                                     </div>
                                                                 )}
