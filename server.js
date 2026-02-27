@@ -489,8 +489,10 @@ app.get('/tvshows/:id/seasons', async (req, res) => {
                 SeasonNo,
                 EpisodeNo,
                 EpisodeTitle,
+                Description,
                 Duration,
-                AvgRating
+                AvgRating,
+                StillPath
             FROM Episode
             WHERE MediaID = $1
             ORDER BY SeasonNo, EpisodeNo

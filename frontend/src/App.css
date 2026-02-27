@@ -855,7 +855,8 @@
 
 .episode-item {
   display: flex;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0;
   padding: 0.85rem 1rem;
   border: 1px solid #e2e6f0;
   border-radius: 10px;
@@ -932,6 +933,35 @@
   margin-top: 0.75rem;
   border-top: 1px solid #eef1f6;
   padding-top: 0.6rem;
+  display: flex;
+  gap: 1rem;
+}
+
+.episode-image-wrapper {
+  flex-shrink: 0;
+  width: 300px;
+}
+
+.episode-image {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: block;
+}
+
+.episode-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.episode-description {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #344154;
 }
 
 .episode-actions {
@@ -1102,4 +1132,153 @@
     gap: 0.56rem;
     padding: 0.48rem 0.56rem;
   }
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: #fff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 700px;
+  max-height: 85vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content.modal-wide {
+  max-width: 95%;
+  min-width: 600px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #1f2937;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.modal-close:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+/* Episode Ratings Grid Styles */
+.ratings-grid-container {
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  min-height: 100px;
+  background: #f9fafb;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.ratings-grid {
+  display: table;
+  border-collapse: separate;
+  border-spacing: 6px;
+}
+
+.ratings-grid-header,
+.ratings-grid-row {
+  display: table-row;
+}
+
+.ratings-grid-cell {
+  display: table-cell;
+  min-width: 55px;
+  width: 55px;
+  height: 48px;
+  text-align: center;
+  vertical-align: middle;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.ratings-grid-season-label {
+  min-width: 50px;
+  width: 50px;
+  background: transparent;
+  color: #374151;
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.ratings-grid-ep-header {
+  background: transparent;
+  color: #6b7280;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding-bottom: 8px;
+}
+
+.ratings-grid-rating {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  color: #1f2937;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ratings-grid-rating:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+  position: relative;
+}
+
+.ratings-grid-empty {
+  background: transparent;
+}
+
+/* Season Actions */
+.season-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
 }

@@ -298,29 +298,35 @@ def process_single_movie(cur, movie_id, movie_title=None):
 # MAIN FUNCTIONS
 # ══════════════════════════════════════════════
 
-def add_popular_movies(pages=1):
-    """Fetch and add popular movies"""
+def add_popular_movies(pages=1, start_page=1):
+    """Fetch and add popular movies starting from start_page"""
     if not API_KEY:
         raise RuntimeError("TMDB_API_KEY not set. Please check your .env file.")
 
     conn = psycopg2.connect(DATABASE_URL)
     cur = conn.cursor()
 
+    end_page = start_page + pages - 1
+    total_movies = pages * 20
+    print(f"\n🎯 Plan: Fetch pages {start_page}–{end_page} (~{total_movies} movies)")
+
+    inserted_count = 0
     try:
-        for page in range(1, pages + 1):
-            print(f"\n📥 Fetching popular movies (page {page})...")
+        for page in range(start_page, end_page + 1):
+            print(f"\n📥 Fetching popular movies (page {page}/{end_page})...")
             movies = fetch_popular_movies(page=page)
-            print(f"   Found {len(movies)} movies")
+            print(f"   Found {len(movies)} movies on this page")
 
             for i, movie in enumerate(movies, 1):
                 movie_id = movie["id"]
                 movie_title = movie["title"]
-                print(f"\n[{i}/{len(movies)}] Processing: {movie_title}")
-                process_single_movie(cur, movie_id, movie_title)
+                print(f"\n[Page {page} | {i}/{len(movies)}] Processing: {movie_title}")
+                if process_single_movie(cur, movie_id, movie_title):
+                    inserted_count += 1
 
         conn.commit()
         print("\n" + "="*50)
-        print("✅ SUCCESS! All data inserted.")
+        print(f"✅ SUCCESS! {inserted_count} movies processed across pages {start_page}–{end_page}.")
         print("="*50)
 
     except Exception as e:
@@ -412,10 +418,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python movie_fetcher.py                    # Fetch 20 popular movies
-  python movie_fetcher.py --pages 3          # Fetch 60 popular movies (3 pages)
-  python movie_fetcher.py --search "Inception"  # Search and add a specific movie
-  python movie_fetcher.py --id 550           # Add movie by TMDB ID (Fight Club)
+  python movie_fetcher.py                         # Fetch 20 popular movies (page 1)
+  python movie_fetcher.py --pages 10              # Fetch 200 popular movies (pages 1-10)
+  python movie_fetcher.py --pages 10 --start-page 2  # Fetch 200 movies starting from page 2
+                                                     # (skips the first 20 already in DB)
+  python movie_fetcher.py --search "Inception"    # Search and add a specific movie
+  python movie_fetcher.py --id 550                # Add movie by TMDB ID (Fight Club)
         """
     )
     
@@ -423,7 +431,13 @@ Examples:
         "--pages", 
         type=int, 
         default=1,
-        help="Number of pages of popular movies to fetch (20 movies per page)"
+        help="Number of pages of popular movies to fetch (20 movies per page, default: 1)"
+    )
+    parser.add_argument(
+        "--start-page",
+        type=int,
+        default=1,
+        help="Page number to start fetching from (default: 1). Use 2 to skip already-fetched page 1."
     )
     parser.add_argument(
         "--search", 
@@ -444,7 +458,7 @@ Examples:
     elif args.id:
         add_movie_by_id(args.id)
     else:
-        add_popular_movies(pages=args.pages)
+        add_popular_movies(pages=args.pages, start_page=args.start_page)
 
 
 if __name__ == "__main__":
