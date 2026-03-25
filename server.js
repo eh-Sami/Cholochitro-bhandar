@@ -1279,6 +1279,225 @@ app.post('/blogs/:id/downvote', async (req, res) => {
     }
 });
 
+// ══════════════════════════════════════════════
+// COMMENT ROUTES
+// ══════════════════════════════════════════════
+
+// GET all comments for a blog
+app.get('/blogs/:id/comments', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = (page - 1) * limit;
+
+        const query = `
+            SELECT 
+                c.CommentID,
+                c.CommentText,
+                c.PostDate,
+                c.UpvoteCount,
+                c.DownvoteCount,
+                c.EditedAt,
+                c.ReplyToCommentID,
+                c.UserID,
+                u.FullName AS CommenterName
+            FROM Comments c
+            JOIN Users u ON c.UserID = u.UserID
+            WHERE c.BlogID = $1
+            ORDER BY c.PostDate ASC
+            LIMIT $2 OFFSET $3
+        `;
+
+        const countQuery = `
+            SELECT COUNT(*) AS total 
+            FROM Comments 
+            WHERE BlogID = $1
+        `;
+
+        const [result, countResult] = await Promise.all([
+            pool.query(query, [id, limit, offset]),
+            pool.query(countQuery, [id])
+        ]);
+
+        const total = parseInt(countResult.rows[0].total);
+
+        res.json({
+            success: true,
+            data: result.rows,
+            pagination: {
+                page: page,
+                limit: limit,
+                total: total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching comments:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch comments'
+        });
+    }
+});
+
+// POST add a comment to a blog
+app.post('/blogs/:id/comments', async (req, res) => {
+    try {
+        const blogId = req.params.id;
+        const { userId, commentText } = req.body;
+
+        // Validate required fields
+        if (!userId || !commentText) {
+            return res.status(400).json({
+                success: false,
+                error: 'userId and commentText are required'
+            });
+        }
+
+        // Check if blog exists
+        const blogCheck = await pool.query(
+            'SELECT BlogID FROM Blog WHERE BlogID = $1',
+            [blogId]
+        );
+
+        if (blogCheck.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Blog not found'
+            });
+        }
+
+        const result = await pool.query(
+            `INSERT INTO Comments (UserID, BlogID, CommentText)
+             VALUES ($1, $2, $3)
+             RETURNING CommentID, UserID, BlogID, CommentText, PostDate, UpvoteCount, DownvoteCount`,
+            [userId, blogId, commentText]
+        );
+
+        res.status(201).json({
+            success: true,
+            data: result.rows[0]
+        });
+
+    } catch (error) {
+        if (error.code === '23503') {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid userId — user does not exist'
+            });
+        }
+        console.error('Error creating comment:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create comment'
+        });
+    }
+});
+
+// PUT edit a comment (only author can edit)
+app.put('/comments/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId, commentText } = req.body;
+
+        if (!userId || !commentText) {
+            return res.status(400).json({
+                success: false,
+                error: 'userId and commentText are required'
+            });
+        }
+
+        // Check ownership
+        const commentCheck = await pool.query(
+            'SELECT UserID FROM Comments WHERE CommentID = $1',
+            [id]
+        );
+
+        if (commentCheck.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Comment not found'
+            });
+        }
+
+        if (commentCheck.rows[0].userid !== parseInt(userId)) {
+            return res.status(403).json({
+                success: false,
+                error: 'You can only edit your own comments'
+            });
+        }
+
+        const result = await pool.query(
+            `UPDATE Comments 
+             SET CommentText = $1, EditedAt = CURRENT_TIMESTAMP
+             WHERE CommentID = $2
+             RETURNING CommentID, CommentText, PostDate, EditedAt, UpvoteCount, DownvoteCount`,
+            [commentText, id]
+        );
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error('Error updating comment:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update comment'
+        });
+    }
+});
+
+// DELETE a comment (only author can delete)
+app.delete('/comments/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                error: 'userId is required to verify authorship'
+            });
+        }
+
+        const commentCheck = await pool.query(
+            'SELECT UserID FROM Comments WHERE CommentID = $1',
+            [id]
+        );
+
+        if (commentCheck.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Comment not found'
+            });
+        }
+
+        if (commentCheck.rows[0].userid !== parseInt(userId)) {
+            return res.status(403).json({
+                success: false,
+                error: 'You can only delete your own comments'
+            });
+        }
+
+        await pool.query('DELETE FROM Comments WHERE CommentID = $1', [id]);
+
+        res.json({
+            success: true,
+            message: 'Comment deleted successfully'
+        });
+
+    } catch (error) {
+        console.error('Error deleting comment:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to delete comment'
+        });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
