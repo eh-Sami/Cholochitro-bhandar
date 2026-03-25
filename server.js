@@ -972,6 +972,259 @@ app.get('/users/:id', async (req, res) => {
     }
 });
 
+// ══════════════════════════════════════════════
+// BLOG ROUTES
+// ══════════════════════════════════════════════
+
+// GET all blogs (paginated)
+app.get('/blogs', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
+        const sort = req.query.sort || 'newest'; // 'newest' or 'popular'
+
+        let orderBy;
+        if (sort === 'popular') {
+            orderBy = 'b.UpvoteCount DESC, b.PostDate DESC';
+        } else {
+            orderBy = 'b.PostDate DESC';
+        }
+
+        const query = `
+            SELECT 
+                b.BlogID,
+                b.BlogTitle,
+                LEFT(b.Content, 200) AS ContentPreview,
+                b.PostDate,
+                b.UpvoteCount,
+                b.DownvoteCount,
+                b.EditedAt,
+                b.UserID,
+                u.FullName AS AuthorName
+            FROM Blog b
+            JOIN Users u ON b.UserID = u.UserID
+            ORDER BY ${orderBy}
+            LIMIT $1 OFFSET $2
+        `;
+
+        const countQuery = `SELECT COUNT(*) AS total FROM Blog`;
+
+        const [result, countResult] = await Promise.all([
+            pool.query(query, [limit, offset]),
+            pool.query(countQuery)
+        ]);
+
+        const total = parseInt(countResult.rows[0].total);
+
+        res.json({
+            success: true,
+            data: result.rows,
+            pagination: {
+                page: page,
+                limit: limit,
+                total: total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching blogs:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch blogs'
+        });
+    }
+});
+
+// GET single blog by ID
+app.get('/blogs/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `SELECT 
+                b.BlogID,
+                b.BlogTitle,
+                b.Content,
+                b.PostDate,
+                b.UpvoteCount,
+                b.DownvoteCount,
+                b.EditedAt,
+                b.UserID,
+                u.FullName AS AuthorName
+            FROM Blog b
+            JOIN Users u ON b.UserID = u.UserID
+            WHERE b.BlogID = $1`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Blog not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Error fetching blog:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch blog'
+        });
+    }
+});
+
+// POST create a new blog
+app.post('/blogs', async (req, res) => {
+    try {
+        const { userId, blogTitle, content } = req.body;
+
+        // Validate required fields
+        if (!userId || !blogTitle || !content) {
+            return res.status(400).json({
+                success: false,
+                error: 'userId, blogTitle, and content are required'
+            });
+        }
+
+        const result = await pool.query(
+            `INSERT INTO Blog (UserID, BlogTitle, Content)
+             VALUES ($1, $2, $3)
+             RETURNING BlogID, UserID, BlogTitle, Content, PostDate, UpvoteCount, DownvoteCount`,
+            [userId, blogTitle, content]
+        );
+
+        res.status(201).json({
+            success: true,
+            data: result.rows[0]
+        });
+
+    } catch (error) {
+        // Handle invalid UserID (foreign key violation)
+        if (error.code === '23503') {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid userId — user does not exist'
+            });
+        }
+        console.error('Error creating blog:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create blog'
+        });
+    }
+});
+
+// PUT update a blog (only author can edit)
+app.put('/blogs/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId, blogTitle, content } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                error: 'userId is required to verify authorship'
+            });
+        }
+
+        // Check if blog exists and belongs to this user
+        const blogCheck = await pool.query(
+            'SELECT UserID FROM Blog WHERE BlogID = $1',
+            [id]
+        );
+
+        if (blogCheck.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Blog not found'
+            });
+        }
+
+        if (blogCheck.rows[0].userid !== parseInt(userId)) {
+            return res.status(403).json({
+                success: false,
+                error: 'You can only edit your own blogs'
+            });
+        }
+
+        const result = await pool.query(
+            `UPDATE Blog 
+             SET BlogTitle = COALESCE($1, BlogTitle),
+                 Content = COALESCE($2, Content),
+                 EditedAt = CURRENT_TIMESTAMP
+             WHERE BlogID = $3
+             RETURNING BlogID, BlogTitle, Content, PostDate, EditedAt, UpvoteCount, DownvoteCount`,
+            [blogTitle || null, content || null, id]
+        );
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+
+    } catch (error) {
+        console.error('Error updating blog:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update blog'
+        });
+    }
+});
+
+// DELETE a blog (only author can delete)
+app.delete('/blogs/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({
+                success: false,
+                error: 'userId is required to verify authorship'
+            });
+        }
+
+        // Check ownership
+        const blogCheck = await pool.query(
+            'SELECT UserID FROM Blog WHERE BlogID = $1',
+            [id]
+        );
+
+        if (blogCheck.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Blog not found'
+            });
+        }
+
+        if (blogCheck.rows[0].userid !== parseInt(userId)) {
+            return res.status(403).json({
+                success: false,
+                error: 'You can only delete your own blogs'
+            });
+        }
+
+        await pool.query('DELETE FROM Blog WHERE BlogID = $1', [id]);
+
+        res.json({
+            success: true,
+            message: 'Blog deleted successfully'
+        });
+
+    } catch (error) {
+        console.error('Error deleting blog:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to delete blog'
+        });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
