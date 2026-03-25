@@ -895,6 +895,83 @@ app.get('/search', async (req, res) => {
     }
 });
 
+// ══════════════════════════════════════════════
+// USER ROUTES
+// ══════════════════════════════════════════════
+
+// POST create a new user
+app.post('/users', async (req, res) => {
+    try {
+        const { fullName, email, password, dateOfBirth } = req.body;
+
+        // Validate required fields
+        if (!fullName || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'fullName, email, and password are required'
+            });
+        }
+
+        const result = await pool.query(
+            `INSERT INTO Users (FullName, Email, PasswordHash, DateOfBirth)
+             VALUES ($1, $2, $3, $4)
+             RETURNING UserID, FullName, Email, DateOfBirth`,
+            [fullName, email, password, dateOfBirth || null]
+        );
+
+        res.status(201).json({
+            success: true,
+            data: result.rows[0]
+        });
+
+    } catch (error) {
+        // Handle duplicate email
+        if (error.code === '23505') {
+            return res.status(409).json({
+                success: false,
+                error: 'A user with this email already exists'
+            });
+        }
+        console.error('Error creating user:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to create user'
+        });
+    }
+});
+
+// GET user by ID
+app.get('/users/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `SELECT UserID, FullName, Email, DateOfBirth
+             FROM Users
+             WHERE UserID = $1`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: result.rows[0]
+        });
+    } catch (error) {
+        console.error('Error fetching user:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch user'
+        });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
