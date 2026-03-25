@@ -1225,6 +1225,60 @@ app.delete('/blogs/:id', async (req, res) => {
     }
 });
 
+// POST upvote a blog
+app.post('/blogs/:id/upvote', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `UPDATE Blog 
+             SET UpvoteCount = UpvoteCount + 1
+             WHERE BlogID = $1
+             RETURNING BlogID, UpvoteCount, DownvoteCount`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Blog not found'
+            });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error upvoting blog:', error);
+        res.status(500).json({ success: false, error: 'Failed to upvote blog' });
+    }
+});
+
+// POST downvote a blog
+app.post('/blogs/:id/downvote', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `UPDATE Blog 
+             SET DownvoteCount = DownvoteCount + 1
+             WHERE BlogID = $1
+             RETURNING BlogID, UpvoteCount, DownvoteCount`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Blog not found'
+            });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error downvoting blog:', error);
+        res.status(500).json({ success: false, error: 'Failed to downvote blog' });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
