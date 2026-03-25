@@ -1498,6 +1498,60 @@ app.delete('/comments/:id', async (req, res) => {
     }
 });
 
+// POST upvote a comment
+app.post('/comments/:id/upvote', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `UPDATE Comments 
+             SET UpvoteCount = UpvoteCount + 1
+             WHERE CommentID = $1
+             RETURNING CommentID, UpvoteCount, DownvoteCount`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Comment not found'
+            });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error upvoting comment:', error);
+        res.status(500).json({ success: false, error: 'Failed to upvote comment' });
+    }
+});
+
+// POST downvote a comment
+app.post('/comments/:id/downvote', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const result = await pool.query(
+            `UPDATE Comments 
+             SET DownvoteCount = DownvoteCount + 1
+             WHERE CommentID = $1
+             RETURNING CommentID, UpvoteCount, DownvoteCount`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Comment not found'
+            });
+        }
+
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error downvoting comment:', error);
+        res.status(500).json({ success: false, error: 'Failed to downvote comment' });
+    }
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
