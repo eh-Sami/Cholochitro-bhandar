@@ -1041,7 +1041,8 @@ app.get('/blogs/:id', async (req, res) => {
     try {
         const { id } = req.params;
 
-        const result = await pool.query(
+        const [result, mentionedMediaResult] = await Promise.all([
+            pool.query(
             `SELECT 
                 b.BlogID,
                 b.BlogTitle,
@@ -1056,7 +1057,18 @@ app.get('/blogs/:id', async (req, res) => {
             JOIN Users u ON b.UserID = u.UserID
             WHERE b.BlogID = $1`,
             [id]
-        );
+        ), 
+            pool.query(
+            `SELECT 
+                m.MediaID, 
+                m.Title, 
+                m.Poster, 
+                m.MediaType
+            FROM Blog_Mentions bm
+            JOIN Media m ON bm.MediaID = m.MediaID
+            WHERE bm.BlogID = $1`,
+            [id]
+        )]);
 
         if (result.rows.length === 0) {
             return res.status(404).json({
@@ -1065,9 +1077,12 @@ app.get('/blogs/:id', async (req, res) => {
             });
         }
 
+        const blog = result.rows[0];
+        blog.mentionedMedia = mentionedMediaResult.rows;
+
         res.json({
             success: true,
-            data: result.rows[0]
+            data: blog
         });
     } catch (error) {
         console.error('Error fetching blog:', error);
@@ -1081,7 +1096,7 @@ app.get('/blogs/:id', async (req, res) => {
 // POST create a new blog
 app.post('/blogs', async (req, res) => {
     try {
-        const { userId, blogTitle, content } = req.body;
+        const { userId, blogTitle, content, mentionedMediaIds } = req.body;
 
         // Validate required fields
         if (!userId || !blogTitle || !content) {
@@ -1094,9 +1109,22 @@ app.post('/blogs', async (req, res) => {
         const result = await pool.query(
             `INSERT INTO Blog (UserID, BlogTitle, Content)
              VALUES ($1, $2, $3)
-             RETURNING BlogID, UserID, BlogTitle, Content, PostDate, UpvoteCount, DownvoteCount`,
+             RETURNING BlogID, UserID, BlogTitle, Content, PostDate,  UpvoteCount, DownvoteCount`,
             [userId, blogTitle, content]
         );
+
+        const blogId = result.rows[0].blogid;
+
+        if (mentionedMediaIds && mentionedMediaIds.length > 0) {
+            const uniqueIds = [...new Set(mentionedMediaIds)];
+            for (const mediaId of uniqueIds) {
+                await pool.query(
+                    `INSERT INTO Blog_Mentions (BlogID, MediaID)
+                     VALUES ($1, $2)
+                     ON CONFLICT DO NOTHING`,
+                    [blogId, mediaId]);
+            }
+        }
 
         res.status(201).json({
             success: true,
@@ -1123,7 +1151,7 @@ app.post('/blogs', async (req, res) => {
 app.put('/blogs/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, blogTitle, content } = req.body;
+        const { userId, blogTitle, content, mentionedMediaIds } = req.body;
 
         if (!userId) {
             return res.status(400).json({
@@ -1161,6 +1189,22 @@ app.put('/blogs/:id', async (req, res) => {
              RETURNING BlogID, BlogTitle, Content, PostDate, EditedAt, UpvoteCount, DownvoteCount`,
             [blogTitle || null, content || null, id]
         );
+
+        if(mentionedMediaIds && mentionedMediaIds.length > 0){
+            await pool.query(
+                `DELETE FROM Blog_Mentions WHERE BlogID = $1`,
+                [id]
+            );
+            const uniqueIds = [...new Set(mentionedMediaIds)];
+            for (const mediaId of uniqueIds) {
+                await pool.query(
+                    `INSERT INTO Blog_Mentions (BlogID, MediaID)
+                     VALUES ($1, $2)
+                     ON CONFLICT DO NOTHING`,
+                    [id, mediaId]
+                );
+            }
+        }
 
         res.json({
             success: true,
