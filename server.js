@@ -1428,7 +1428,7 @@ app.post('/blogs/:id/comments', async (req, res) => {
         if (error.code === '23503') {
             return res.status(400).json({
                 success: false,
-                error: 'Invalid userId — user does not exist'
+                error: 'Invalid userId or replyToCommentId — referenced record does not exist'
             });
         }
         console.error('Error creating comment:', error);
