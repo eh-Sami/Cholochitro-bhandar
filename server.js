@@ -1345,7 +1345,7 @@ app.get('/blogs/:id/comments', async (req, res) => {
 app.post('/blogs/:id/comments', async (req, res) => {
     try {
         const blogId = req.params.id;
-        const { userId, commentText } = req.body;
+        const { userId, commentText, replyToCommentId } = req.body;
 
         // Validate required fields
         if (!userId || !commentText) {
@@ -1369,10 +1369,10 @@ app.post('/blogs/:id/comments', async (req, res) => {
         }
 
         const result = await pool.query(
-            `INSERT INTO Comments (UserID, BlogID, CommentText)
-             VALUES ($1, $2, $3)
-             RETURNING CommentID, UserID, BlogID, CommentText, PostDate, UpvoteCount, DownvoteCount`,
-            [userId, blogId, commentText]
+            `INSERT INTO Comments (UserID, BlogID, ReplyToCommentID, CommentText)
+             VALUES ($1, $2, $3, $4)
+             RETURNING CommentID, UserID, BlogID, ReplyToCommentID, CommentText, PostDate, UpvoteCount, DownvoteCount`,
+            [userId, blogId, replyToCommentId || null, commentText]
         );
 
         res.status(201).json({
