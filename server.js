@@ -1001,7 +1001,8 @@ app.get('/blogs', async (req, res) => {
                 b.DownvoteCount,
                 b.EditedAt,
                 b.UserID,
-                u.FullName AS AuthorName
+                u.FullName AS AuthorName,
+                (SELECT COUNT(*) FROM Comments WHERE BlogID = b.BlogID) AS CommentCount
             FROM Blog b
             JOIN Users u ON b.UserID = u.UserID
             ORDER BY ${orderBy}

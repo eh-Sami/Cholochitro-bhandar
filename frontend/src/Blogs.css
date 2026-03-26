@@ -1,0 +1,230 @@
+/* Blogs.css */
+.blogs-page {
+  padding-bottom: 5rem;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.blogs-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.blogs-header h1 {
+  font-size: 2rem;
+  color: #1f2635;
+  margin: 0;
+}
+
+.blogs-controls {
+  display: flex;
+  gap: 1rem;
+}
+
+.sort-select {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #d7dbe6;
+  background: white;
+  color: #1f2635;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.blogs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.blog-card {
+  background: white;
+  border: 1px solid #e2e6f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+  display: block;
+}
+
+.blog-card:hover {
+  border-color: var(--accent-strong);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(120, 122, 247, 0.08);
+}
+
+.blog-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.blog-card-title {
+  font-size: 1.25rem;
+  margin: 0;
+  color: #1f2635;
+  font-weight: 600;
+}
+
+.blog-author {
+  font-size: 0.9rem;
+  color: #6a7488;
+  margin-top: 0.25rem;
+}
+
+.blog-date {
+  font-size: 0.85rem;
+  color: #8a94a6;
+}
+
+.blog-preview {
+  color: #4a566e;
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+  white-space: pre-wrap;
+}
+
+.blog-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #edf0f6;
+  color: #6a7488;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  background: #f1f4ff;
+  color: var(--accent-strong);
+}
+
+.action-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.fab {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--accent-strong);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 16px rgba(120, 122, 247, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 100;
+}
+
+.comment-node-wrapper {
+  display: flex;
+  flex-direction: column;
+  margin-top: 1rem;
+  position: relative;
+}
+
+.comment-thread {
+  margin-left: 1rem;
+  /* Removed strict container border so it doesn't overshoot the last reply */
+}
+
+.comment-thread > .comment-node-wrapper {
+  margin-left: 1.5rem; /* Gap for the curve */
+}
+
+/* The vertical anchor line tracking downwards */
+.comment-thread > .comment-node-wrapper::before {
+  content: '';
+  position: absolute;
+  top: -1rem; /* Reach up to connect the gap */
+  bottom: -1rem; /* Reach down to connect the next reply's gap */
+  left: -1.6rem; 
+  border-left: 2px solid #edf0f6;
+}
+
+/* The horizontal curved connector L-branching into the side of the reply */
+.comment-thread > .comment-node-wrapper::after {
+  content: '';
+  position: absolute;
+  top: -1rem;
+  left: -1.6rem; 
+  width: 1.6rem; 
+  height: 2.5rem; /* Drops down 2.5rem before hooking right */
+  border-bottom: 2px solid #edf0f6;
+  border-left: 2px solid #edf0f6; 
+  border-bottom-left-radius: 16px;
+  pointer-events: none;
+}
+
+/* Stop the vertical line exactly at the hook for the final child of the thread! */
+.comment-thread > .comment-node-wrapper:last-child::before {
+  bottom: auto;
+  height: 2.5rem; /* Matches the exact depth of the horizontal connector's drop */
+}
+
+.fab:hover {
+  transform: scale(1.05) translateY(-2px);
+  box-shadow: 0 6px 20px rgba(120, 122, 247, 0.5);
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 3rem;
+}
+
+.pagination button {
+  padding: 0.5rem 1rem;
+  background: white;
+  border: 1px solid #d7dbe6;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mention-link {
+  color: var(--accent-strong);
+  font-weight: 600;
+  background: rgba(139, 141, 248, 0.1);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.mention-link:hover {
+  background: var(--accent-strong);
+  color: white;
+}
