@@ -168,21 +168,45 @@ CREATE TABLE Comments (
 -- ─────────────────────────────────────────────
 -- 5. JUNCTION TABLES (Relationships)
 -- ─────────────────────────────────────────────
--- "Mentioned" Relationship (Blog M:N Media)
+-- "Mentioned" Relationship (Blog mentions Media, Person, or User_List)
 CREATE TABLE Blog_Mentions (
-    BlogID INT,
-    MediaID INT,
-    PRIMARY KEY (BlogID, MediaID),
+    MentionID SERIAL PRIMARY KEY,
+    BlogID    INT NOT NULL,
+    MediaID   INT NULL,
+    PersonID  INT NULL,
+    ListID    INT NULL,
     FOREIGN KEY (BlogID) REFERENCES Blog(BlogID) ON DELETE CASCADE,
-    FOREIGN KEY (MediaID) REFERENCES Media(MediaID) ON DELETE CASCADE
+    FOREIGN KEY (MediaID) REFERENCES Media(MediaID) ON DELETE CASCADE,
+    FOREIGN KEY (PersonID) REFERENCES Person(PersonID) ON DELETE CASCADE,
+    FOREIGN KEY (ListID) REFERENCES User_List(ListID) ON DELETE CASCADE,
+    CONSTRAINT blog_one_mention_type CHECK (
+        (MediaID IS NOT NULL)::INT +
+        (PersonID IS NOT NULL)::INT +
+        (ListID IS NOT NULL)::INT = 1
+    ),
+    UNIQUE (BlogID, MediaID),
+    UNIQUE (BlogID, PersonID),
+    UNIQUE (BlogID, ListID)
 );
--- "Mentioned" Relationship for Comments (Comments M:N Media)
+-- "Mentioned" Relationship for Comments (same pattern)
 CREATE TABLE Comment_Mentions (
-    CommentID INT,
-    MediaID INT,
-    PRIMARY KEY (CommentID, MediaID),
+    MentionID SERIAL PRIMARY KEY,
+    CommentID INT NOT NULL,
+    MediaID   INT NULL,
+    PersonID  INT NULL,
+    ListID    INT NULL,
     FOREIGN KEY (CommentID) REFERENCES Comments(CommentID) ON DELETE CASCADE,
-    FOREIGN KEY (MediaID) REFERENCES Media(MediaID) ON DELETE CASCADE
+    FOREIGN KEY (MediaID) REFERENCES Media(MediaID) ON DELETE CASCADE,
+    FOREIGN KEY (PersonID) REFERENCES Person(PersonID) ON DELETE CASCADE,
+    FOREIGN KEY (ListID) REFERENCES User_List(ListID) ON DELETE CASCADE,
+    CONSTRAINT comment_one_mention_type CHECK (
+        (MediaID IS NOT NULL)::INT +
+        (PersonID IS NOT NULL)::INT +
+        (ListID IS NOT NULL)::INT = 1
+    ),
+    UNIQUE (CommentID, MediaID),
+    UNIQUE (CommentID, PersonID),
+    UNIQUE (CommentID, ListID)
 );
 -- "Production" Relationship (Studio M:N Media)
 CREATE TABLE Production (

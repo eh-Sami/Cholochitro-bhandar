@@ -1041,7 +1041,7 @@ app.get('/blogs/:id', async (req, res) => {
     try {
         const { id } = req.params;
 
-        const [result, mentionedMediaResult] = await Promise.all([
+        const [result, mentionsResult] = await Promise.all([
             pool.query(
             `SELECT 
                 b.BlogID,
@@ -1060,12 +1060,15 @@ app.get('/blogs/:id', async (req, res) => {
         ), 
             pool.query(
             `SELECT 
-                m.MediaID, 
-                m.Title, 
-                m.Poster, 
-                m.MediaType
+                bm.MentionID,
+                bm.MediaID, bm.PersonID, bm.ListID,
+                m.Title AS MediaTitle, m.Poster AS MediaPoster, m.MediaType,
+                p.FullName AS PersonName, p.Picture AS PersonPicture,
+                ul.ListName, ul.IsPublic
             FROM Blog_Mentions bm
-            JOIN Media m ON bm.MediaID = m.MediaID
+            LEFT JOIN Media m ON bm.MediaID = m.MediaID
+            LEFT JOIN Person p ON bm.PersonID = p.PersonID
+            LEFT JOIN User_List ul ON bm.ListID = ul.ListID
             WHERE bm.BlogID = $1`,
             [id]
         )]);
@@ -1077,8 +1080,20 @@ app.get('/blogs/:id', async (req, res) => {
             });
         }
 
+        // Group mentions by type
         const blog = result.rows[0];
-        blog.mentionedMedia = mentionedMediaResult.rows;
+        const allMentions = mentionsResult.rows;
+        blog.mentions = {
+            media: allMentions.filter(m => m.mediaid).map(m => ({
+                mediaId: m.mediaid, title: m.mediatitle, poster: m.mediaposter, mediaType: m.mediatype
+            })),
+            persons: allMentions.filter(m => m.personid).map(m => ({
+                personId: m.personid, name: m.personname, picture: m.personpicture
+            })),
+            lists: allMentions.filter(m => m.listid).map(m => ({
+                listId: m.listid, listName: m.listname, isPublic: m.ispublic
+            }))
+        };
 
         res.json({
             success: true,
@@ -1096,7 +1111,7 @@ app.get('/blogs/:id', async (req, res) => {
 // POST create a new blog
 app.post('/blogs', async (req, res) => {
     try {
-        const { userId, blogTitle, content, mentionedMediaIds } = req.body;
+        const { userId, blogTitle, content, mentions } = req.body;
 
         // Validate required fields
         if (!userId || !blogTitle || !content) {
@@ -1109,20 +1124,31 @@ app.post('/blogs', async (req, res) => {
         const result = await pool.query(
             `INSERT INTO Blog (UserID, BlogTitle, Content)
              VALUES ($1, $2, $3)
-             RETURNING BlogID, UserID, BlogTitle, Content, PostDate,  UpvoteCount, DownvoteCount`,
+             RETURNING BlogID, UserID, BlogTitle, Content, PostDate, UpvoteCount, DownvoteCount`,
             [userId, blogTitle, content]
         );
 
         const blogId = result.rows[0].blogid;
 
-        if (mentionedMediaIds && mentionedMediaIds.length > 0) {
-            const uniqueIds = [...new Set(mentionedMediaIds)];
-            for (const mediaId of uniqueIds) {
+        // Insert mentions (media, person, or list)
+        if (mentions && mentions.length > 0) {
+            // Deduplicate by type+id
+            const seen = new Set();
+            for (const mention of mentions) {
+                const key = `${mention.type}:${mention.id}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
                 await pool.query(
-                    `INSERT INTO Blog_Mentions (BlogID, MediaID)
-                     VALUES ($1, $2)
+                    `INSERT INTO Blog_Mentions (BlogID, MediaID, PersonID, ListID)
+                     VALUES ($1, $2, $3, $4)
                      ON CONFLICT DO NOTHING`,
-                    [blogId, mediaId]);
+                    [
+                        blogId,
+                        mention.type === 'media' ? mention.id : null,
+                        mention.type === 'person' ? mention.id : null,
+                        mention.type === 'list' ? mention.id : null
+                    ]);
             }
         }
 
@@ -1151,7 +1177,7 @@ app.post('/blogs', async (req, res) => {
 app.put('/blogs/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, blogTitle, content, mentionedMediaIds } = req.body;
+        const { userId, blogTitle, content, mentions } = req.body;
 
         if (!userId) {
             return res.status(400).json({
@@ -1190,18 +1216,28 @@ app.put('/blogs/:id', async (req, res) => {
             [blogTitle || null, content || null, id]
         );
 
-        if(mentionedMediaIds && mentionedMediaIds.length > 0){
+        // Update mentions if provided
+        if (mentions && mentions.length > 0) {
             await pool.query(
                 `DELETE FROM Blog_Mentions WHERE BlogID = $1`,
                 [id]
             );
-            const uniqueIds = [...new Set(mentionedMediaIds)];
-            for (const mediaId of uniqueIds) {
+            const seen = new Set();
+            for (const mention of mentions) {
+                const key = `${mention.type}:${mention.id}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
                 await pool.query(
-                    `INSERT INTO Blog_Mentions (BlogID, MediaID)
-                     VALUES ($1, $2)
+                    `INSERT INTO Blog_Mentions (BlogID, MediaID, PersonID, ListID)
+                     VALUES ($1, $2, $3, $4)
                      ON CONFLICT DO NOTHING`,
-                    [id, mediaId]
+                    [
+                        id,
+                        mention.type === 'media' ? mention.id : null,
+                        mention.type === 'person' ? mention.id : null,
+                        mention.type === 'list' ? mention.id : null
+                    ]
                 );
             }
         }
@@ -1359,16 +1395,52 @@ app.get('/blogs/:id/comments', async (req, res) => {
             WHERE BlogID = $1
         `;
 
-        const [result, countResult] = await Promise.all([
+        // Fetch mentions for all comments in this blog
+        const mentionsQuery = `
+            SELECT 
+                cm.CommentID,
+                cm.MediaID, cm.PersonID, cm.ListID,
+                m.Title AS MediaTitle, m.Poster AS MediaPoster, m.MediaType,
+                p.FullName AS PersonName, p.Picture AS PersonPicture,
+                ul.ListName, ul.IsPublic
+            FROM Comment_Mentions cm
+            LEFT JOIN Media m ON cm.MediaID = m.MediaID
+            LEFT JOIN Person p ON cm.PersonID = p.PersonID
+            LEFT JOIN User_List ul ON cm.ListID = ul.ListID
+            WHERE cm.CommentID IN (
+                SELECT CommentID FROM Comments WHERE BlogID = $1
+            )
+        `;
+
+        const [result, countResult, mentionsResult] = await Promise.all([
             pool.query(query, [id, limit, offset]),
-            pool.query(countQuery, [id])
+            pool.query(countQuery, [id]),
+            pool.query(mentionsQuery, [id])
         ]);
 
         const total = parseInt(countResult.rows[0].total);
+        const allMentions = mentionsResult.rows;
+
+        // Attach mentions to each comment
+        const comments = result.rows.map(comment => {
+            const commentMentions = allMentions.filter(m => m.commentid === comment.commentid);
+            comment.mentions = {
+                media: commentMentions.filter(m => m.mediaid).map(m => ({
+                    mediaId: m.mediaid, title: m.mediatitle, poster: m.mediaposter, mediaType: m.mediatype
+                })),
+                persons: commentMentions.filter(m => m.personid).map(m => ({
+                    personId: m.personid, name: m.personname, picture: m.personpicture
+                })),
+                lists: commentMentions.filter(m => m.listid).map(m => ({
+                    listId: m.listid, listName: m.listname, isPublic: m.ispublic
+                }))
+            };
+            return comment;
+        });
 
         res.json({
             success: true,
-            data: result.rows,
+            data: comments,
             pagination: {
                 page: page,
                 limit: limit,
@@ -1389,7 +1461,7 @@ app.get('/blogs/:id/comments', async (req, res) => {
 app.post('/blogs/:id/comments', async (req, res) => {
     try {
         const blogId = req.params.id;
-        const { userId, commentText, replyToCommentId } = req.body;
+        const { userId, commentText, replyToCommentId, mentions } = req.body;
 
         // Validate required fields
         if (!userId || !commentText) {
@@ -1419,6 +1491,28 @@ app.post('/blogs/:id/comments', async (req, res) => {
             [userId, blogId, replyToCommentId || null, commentText]
         );
 
+        // Insert comment mentions
+        const commentId = result.rows[0].commentid;
+        if (mentions && mentions.length > 0) {
+            const seen = new Set();
+            for (const mention of mentions) {
+                const key = `${mention.type}:${mention.id}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
+                await pool.query(
+                    `INSERT INTO Comment_Mentions (CommentID, MediaID, PersonID, ListID)
+                     VALUES ($1, $2, $3, $4)
+                     ON CONFLICT DO NOTHING`,
+                    [
+                        commentId,
+                        mention.type === 'media' ? mention.id : null,
+                        mention.type === 'person' ? mention.id : null,
+                        mention.type === 'list' ? mention.id : null
+                    ]);
+            }
+        }
+
         res.status(201).json({
             success: true,
             data: result.rows[0]
@@ -1443,7 +1537,7 @@ app.post('/blogs/:id/comments', async (req, res) => {
 app.put('/comments/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, commentText } = req.body;
+        const { userId, commentText, mentions } = req.body;
 
         if (!userId || !commentText) {
             return res.status(400).json({
@@ -1479,6 +1573,32 @@ app.put('/comments/:id', async (req, res) => {
              RETURNING CommentID, CommentText, PostDate, EditedAt, UpvoteCount, DownvoteCount`,
             [commentText, id]
         );
+
+        // Update comment mentions if provided
+        if (mentions && mentions.length > 0) {
+            await pool.query(
+                'DELETE FROM Comment_Mentions WHERE CommentID = $1',
+                [id]
+            );
+            const seen = new Set();
+            for (const mention of mentions) {
+                const key = `${mention.type}:${mention.id}`;
+                if (seen.has(key)) continue;
+                seen.add(key);
+
+                await pool.query(
+                    `INSERT INTO Comment_Mentions (CommentID, MediaID, PersonID, ListID)
+                     VALUES ($1, $2, $3, $4)
+                     ON CONFLICT DO NOTHING`,
+                    [
+                        id,
+                        mention.type === 'media' ? mention.id : null,
+                        mention.type === 'person' ? mention.id : null,
+                        mention.type === 'list' ? mention.id : null
+                    ]
+                );
+            }
+        }
 
         res.json({
             success: true,
