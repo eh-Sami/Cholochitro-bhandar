@@ -101,6 +101,12 @@ function TVShowDetailsPage() {
     const selectedSeason = show.seasons?.find((season) => season.seasonno === selectedSeasonNo)
         || show.seasons?.[0]
         || null
+    const globalSeasonRating = selectedSeason?.avgrating !== null && selectedSeason?.avgrating !== undefined
+        ? Number(selectedSeason.avgrating).toFixed(1)
+        : 'N/A'
+    const websiteSeasonRating = selectedSeason?.websiteSeasonRating !== null && selectedSeason?.websiteSeasonRating !== undefined
+        ? Number(selectedSeason.websiteSeasonRating).toFixed(1)
+        : 'N/A'
 
     return (
         <main className="page">
@@ -154,8 +160,16 @@ function TVShowDetailsPage() {
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">⭐</span>
-                                        <span className="detail-fact-label">Rating</span>
+                                        <span className="detail-fact-label">Global Rating</span>
                                         <strong className="detail-fact-value">{show.rating ? `⭐ ${show.rating}` : 'N/A'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">🧑</span>
+                                        <span className="detail-fact-label">Website Rating</span>
+                                        <strong className="detail-fact-value">
+                                            {show.websiteRating ? `⭐ ${show.websiteRating}` : 'N/A'}
+                                        </strong>
+                                        <small>{show.reviewCount || 0} episode reviews</small>
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">🏆</span>
@@ -170,6 +184,14 @@ function TVShowDetailsPage() {
                                 <p className="detail-desc detail-desc-large">
                                     {show.description || 'No description available.'}
                                 </p>
+                            </div>
+
+                            <div className="detail-section">
+                                <h3>Website Reviews</h3>
+                                <p className="status">For TV series, users rate and review episodes. Season and website ratings are derived from episode reviews.</p>
+                                <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
+                                    Go To Episode Reviews
+                                </Link>
                             </div>
                         </div>
                     </div>
@@ -215,9 +237,8 @@ function TVShowDetailsPage() {
                                                 {avgDuration > 0 && (
                                                     <span className="season-duration">~{avgDuration} min/ep</span>
                                                 )}
-                                                {selectedSeason.avgrating && (
-                                                    <span className="season-rating">⭐ {selectedSeason.avgrating}</span>
-                                                )}
+                                                <span className="season-rating">Global ⭐ {globalSeasonRating}</span>
+                                                <span className="season-rating">Website ⭐ {websiteSeasonRating}</span>
                                             </div>
                                         </div>
 
@@ -348,9 +369,8 @@ function TVShowDetailsPage() {
                                                 {avgDuration > 0 && (
                                                     <span className="season-duration">~{avgDuration} min/ep</span>
                                                 )}
-                                                {selectedSeason.avgrating && (
-                                                    <span className="season-rating">⭐ {selectedSeason.avgrating}</span>
-                                                )}
+                                                <span className="season-rating">Global ⭐ {globalSeasonRating}</span>
+                                                <span className="season-rating">Website ⭐ {websiteSeasonRating}</span>
                                             </div>
                                         </div>
 

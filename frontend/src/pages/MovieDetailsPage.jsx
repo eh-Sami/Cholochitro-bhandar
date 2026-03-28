@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import MediaReviewsSection from '../components/MediaReviewsSection'
 
 const API_BASE = 'http://localhost:3000'
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w500'
@@ -139,8 +140,16 @@ function MovieDetailsPage() {
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">⭐</span>
-                                        <span className="detail-fact-label">Rating</span>
+                                        <span className="detail-fact-label">Global Rating</span>
                                         <strong className="detail-fact-value">{movie.rating ? `⭐ ${movie.rating}` : 'N/A'}</strong>
+                                    </div>
+                                    <div className="detail-fact">
+                                        <span className="detail-fact-icon">🧑</span>
+                                        <span className="detail-fact-label">Website Rating</span>
+                                        <strong className="detail-fact-value">
+                                            {movie.websiteRating ? `⭐ ${movie.websiteRating}` : 'N/A'}
+                                        </strong>
+                                        <small>{movie.reviewCount || 0} reviews</small>
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">🏆</span>
@@ -156,6 +165,8 @@ function MovieDetailsPage() {
                                     {movie.description || 'No description available.'}
                                 </p>
                             </div>
+
+                            <MediaReviewsSection mediaId={id} />
 
                             {movie.trailerlink && (
                                 <div className="detail-section trailer-section">
