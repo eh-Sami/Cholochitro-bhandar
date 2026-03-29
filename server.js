@@ -1458,6 +1458,31 @@ app.get('/blogs/:id/comments', async (req, res) => {
     }
 });
 
+// GET search User Lists
+app.get('/lists/search', async (req, res) => {
+    try {
+        const query = req.query.q;
+        if (!query || query.trim().length === 0) {
+            return res.status(400).json({ success: false, error: 'q is required' });
+        }
+        
+        const limit = parseInt(req.query.limit) || 10;
+        
+        const result = await pool.query(`
+            SELECT ul.ListID, ul.ListName, ul.IsPublic, u.FullName as Creator
+            FROM User_List ul
+            JOIN Users u ON ul.UserID = u.UserID
+            WHERE ul.ListName ILIKE $1 AND ul.IsPublic = TRUE
+            LIMIT $2
+        `, [`%${query}%`, limit]);
+        
+        res.json({ success: true, data: result.rows });
+    } catch (e) {
+        console.error('Error searching lists:', e);
+        res.status(500).json({ success: false, error: 'List search failed' });
+    }
+});
+
 // POST add a comment to a blog
 app.post('/blogs/:id/comments', async (req, res) => {
     try {

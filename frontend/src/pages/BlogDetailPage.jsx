@@ -18,6 +18,7 @@ const CommentNode = ({ comment, currentUser, handleEntityVote, renderContentWith
   const [editText, setEditText] = useState(comment.commenttext);
   const [editMentions, setEditMentions] = useState([]); // Assuming backend needs payload
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [showEditMentionModal, setShowEditMentionModal] = useState(false);
   const editInputRef = React.useRef(null);
 
   const handleReply = async () => {
@@ -136,12 +137,35 @@ const CommentNode = ({ comment, currentUser, handleEntityVote, renderContentWith
                rows="3"
                style={{ width: '100%', padding: '0.8rem', borderRadius: '8px', border: '1px solid #d7dbe6', resize: 'vertical' }}
              />
-             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem', gap: '0.5rem' }}>
-                <button className="btn btn-ghost" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={() => setIsEditing(false)}>Cancel</button>
-                <button className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} disabled={isEditSubmitting || !editText.trim()} onClick={handleEditSubmit}>
-                  Save
+             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowEditMentionModal(true)}
+                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                >
+                  <LinkIcon size={12} /> Mention
                 </button>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button className="btn btn-ghost" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={() => setIsEditing(false)}>Cancel</button>
+                  <button className="btn btn-primary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} disabled={isEditSubmitting || !editText.trim()} onClick={handleEditSubmit}>
+                    Save
+                  </button>
+                </div>
              </div>
+
+             {showEditMentionModal && (
+               <MentionModal 
+                 onClose={() => setShowEditMentionModal(false)}
+                 onSelect={(item) => {
+                   const text = ` @[${item.title}](${item.type}:${item.id}) `;
+                   const cur = editInputRef.current?.selectionStart || editText.length;
+                   setEditText(editText.slice(0, cur) + text + editText.slice(cur));
+                   setEditMentions(p => p.find(m => m.id === item.id && m.type === item.type) ? p : [...p, {type: item.type, id: item.id}]);
+                   setShowEditMentionModal(false);
+                 }}
+               />
+             )}
           </div>
         ) : (
           <div style={{ color: '#4a566e', marginBottom: '1rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
@@ -194,10 +218,10 @@ const CommentNode = ({ comment, currentUser, handleEntityVote, renderContentWith
              <MentionModal 
                onClose={() => setShowReplyMentionModal(false)}
                onSelect={(item) => {
-                 const text = ` @[${item.title}](media:${item.mediaid}) `;
+                 const text = ` @[${item.title}](${item.type}:${item.id}) `;
                  const cur = replyInputRef.current?.selectionStart || replyText.length;
                  setReplyText(replyText.slice(0, cur) + text + replyText.slice(cur));
-                 setReplyMentions(p => p.find(m => m.id === item.mediaid) ? p : [...p, {type: 'media', id: item.mediaid}]);
+                 setReplyMentions(p => p.find(m => m.id === item.id && m.type === item.type) ? p : [...p, {type: item.type, id: item.id}]);
                  setShowReplyMentionModal(false);
                }}
              />
@@ -326,7 +350,7 @@ export default function BlogDetailPage() {
   };
 
   const insertCommentMention = (item) => {
-    const insertionText = ` @[${item.title}](media:${item.mediaid}) `;
+    const insertionText = ` @[${item.title}](${item.type}:${item.id}) `;
     
     // Insert into textarea at cursor
     const cursor = commentInputRef.current?.selectionStart || newComment.length;
@@ -335,8 +359,8 @@ export default function BlogDetailPage() {
     
     // Update payload array
     setCommentMentions(prev => {
-      if (!prev.find(m => m.id === item.mediaid && m.type === 'media')) {
-        return [...prev, { type: 'media', id: item.mediaid }];
+      if (!prev.find(m => m.id === item.id && m.type === item.type)) {
+        return [...prev, { type: item.type, id: item.id }];
       }
       return prev;
     });

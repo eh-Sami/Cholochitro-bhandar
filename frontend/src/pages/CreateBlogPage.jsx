@@ -18,7 +18,7 @@ export default function CreateBlogPage() {
 
   const insertMention = (item) => {
     // 1. the tag string
-    const insertionText = ` @[${item.title}](media:${item.mediaid}) `;
+    const insertionText = ` @[${item.title}](${item.type}:${item.id}) `;
     
     // 2. insert into textarea at cursor
     const cursorPosition = textareaRef.current?.selectionStart || content.length;
@@ -28,8 +28,8 @@ export default function CreateBlogPage() {
     // 3. update mentions payload array for the backend
     setMentions(prev => {
       // Prevent duplicates in the payload array
-      if (!prev.find(m => m.id === item.mediaid && m.type === 'media')) {
-        return [...prev, { type: 'media', id: item.mediaid }];
+      if (!prev.find(m => m.id === item.id && m.type === item.type)) {
+        return [...prev, { type: item.type, id: item.id }];
       }
       return prev;
     });

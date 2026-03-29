@@ -48,7 +48,7 @@ export default function EditBlogPage() {
   }, [id, navigate]);
 
   const insertMention = (item) => {
-    const mentionTag = ` @[${item.title}](media:${item.mediaid}) `;
+    const mentionTag = ` @[${item.title}](${item.type}:${item.id}) `;
     
     // insert text at cursor position
     const cursorPosition = contentInputRef.current?.selectionStart || content.length;
@@ -58,9 +58,9 @@ export default function EditBlogPage() {
     // update mentions array for the backend payload
     setMentions(prev => {
       // Check if we already have this exact mention type+id
-      const exists = prev.find(m => m.id === item.mediaid && m.type === 'media');
+      const exists = prev.find(m => m.id === item.id && m.type === item.type);
       if (!exists) {
-        return [...prev, { type: 'media', id: item.mediaid }];
+        return [...prev, { type: item.type, id: item.id }];
       }
       return prev;
     });
