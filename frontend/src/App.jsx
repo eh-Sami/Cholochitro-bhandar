@@ -11,6 +11,10 @@ import SignupPage from './pages/SignupPage'
 import TVShowsPage from './pages/TVShowsPage'
 import TVShowDetailsPage from './pages/TVShowDetailsPage'
 import TVShowSeasonsPage from './pages/TVShowSeasonsPage'
+import BlogsPage from './pages/BlogsPage'
+import BlogDetailPage from './pages/BlogDetailPage'
+import CreateBlogPage from './pages/CreateBlogPage'
+import EditBlogPage from './pages/EditBlogPage'
 import { clearStoredAuth, getStoredAuth, setStoredAuth } from './utils/auth'
 
 function App() {
@@ -34,6 +38,7 @@ function App() {
         <nav className="nav">
           <Link to="/movies">Movies</Link>
           <Link to="/tvshows">TV Shows</Link>
+          <Link to="/blogs">Blogs</Link>
           <Link to="/search">Search</Link>
           {authUser ? (
             <>
@@ -58,6 +63,10 @@ function App() {
         <Route path="/tvshows" element={<TVShowsPage />} />
         <Route path="/tvshows/:id" element={<TVShowDetailsPage />} />
         <Route path="/tvshows/:id/seasons" element={<TVShowSeasonsPage />} />
+        <Route path="/blogs" element={<BlogsPage />} />
+        <Route path="/blogs/new" element={<CreateBlogPage />} />
+        <Route path="/blogs/:id/edit" element={<EditBlogPage />} />
+        <Route path="/blogs/:id" element={<BlogDetailPage />} />
         <Route path="/search" element={<SearchPage />} />
       </Routes>
     </div>
