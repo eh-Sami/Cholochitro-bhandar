@@ -8,11 +8,10 @@ function HomePage() {
         <main className="home-page">
             <section className="home-hero">
                 <div className="home-hero-content">
-                    <span className="badge">Your Movie Database</span>
+                    <span className="badge">Cholochitro Bhandar</span>
                     <h2>Discover movies and TV shows like IMDb</h2>
                     <p>
-                        Explore titles, ratings, casts, and details from your own project database.
-                        Built for your course demo with a clean, modern browsing experience.
+                        Explore titles, ratings, casts, and details from our own project database.
                     </p>
                     <div className="hero-actions">
                         <Link className="btn btn-primary" to="/movies">Browse Movies</Link>

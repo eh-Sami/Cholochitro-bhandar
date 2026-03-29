@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import EpisodeReviewsSection from '../components/EpisodeReviewsSection'
 
 const API_BASE = 'http://localhost:3000'
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w500'
@@ -90,6 +91,12 @@ function TVShowSeasonsPage() {
     const selectedSeason = show.seasons?.find((season) => season.seasonno === selectedSeasonNo)
         || show.seasons?.[0]
         || null
+    const globalSeasonRating = selectedSeason?.avgrating !== null && selectedSeason?.avgrating !== undefined
+        ? Number(selectedSeason.avgrating).toFixed(1)
+        : 'N/A'
+    const websiteSeasonRating = selectedSeason?.websiteSeasonRating !== null && selectedSeason?.websiteSeasonRating !== undefined
+        ? Number(selectedSeason.websiteSeasonRating).toFixed(1)
+        : 'N/A'
 
     return (
         <main className="page">
@@ -151,9 +158,8 @@ function TVShowSeasonsPage() {
                                                 {avgDuration > 0 && (
                                                     <span className="season-duration">~{avgDuration} min/ep</span>
                                                 )}
-                                                {selectedSeason.avgrating && (
-                                                    <span className="season-rating">⭐ {selectedSeason.avgrating}</span>
-                                                )}
+                                                <span className="season-rating">Global ⭐ {globalSeasonRating}</span>
+                                                <span className="season-rating">Website ⭐ {websiteSeasonRating}</span>
                                             </div>
                                         </div>
 
@@ -232,7 +238,11 @@ function TVShowSeasonsPage() {
                                                                                 <p className="episode-description">{episode.description}</p>
                                                                             )}
                                                                             <div className="episode-actions">
-                                                                                <span className="episode-note">Reviews and ratings coming soon.</span>
+                                                                                <EpisodeReviewsSection
+                                                                                    mediaId={id}
+                                                                                    seasonNo={selectedSeason.seasonno}
+                                                                                    episodeNo={episode.episodeno}
+                                                                                />
                                                                             </div>
                                                                         </div>
                                                                     </div>

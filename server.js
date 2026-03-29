@@ -1,15 +1,56 @@
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
 
-// ══════════════════════════════════════════════
-// MIDDLEWARE
-// ══════════════════════════════════════════════
+const formatUser = (row) => ({
+    userId: row.userid,
+    fullName: row.fullname,
+    email: row.email,
+    dateOfBirth: row.dateofbirth
+});
 
-// Enable CORS - allows frontend to connect from different port/domain
+const createAuthToken = (user) => jwt.sign(
+    {
+        userId: user.userId,
+        email: user.email,
+        fullName: user.fullName
+    },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+);
+
+const requireAuth = (req, res, next) => {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+    if (!token) {
+        return res.status(401).json({
+            success: false,
+            error: 'Authorization token is required'
+        });
+    }
+
+    try {
+        const payload = jwt.verify(token, JWT_SECRET);
+        req.user = payload;
+        return next();
+    } catch {
+        return res.status(401).json({
+            success: false,
+            error: 'Invalid or expired token'
+        });
+    }
+};
+
+
+
+// Enable CORS 
 app.use(cors());
 
 // Parse JSON request bodies
@@ -21,10 +62,8 @@ app.use((req, res, next) => {
     next();
 });
 
-// ══════════════════════════════════════════════
 // DATABASE CONNECTION
-// ══════════════════════════════════════════════
-// Neon DB uses a connection string format
+
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.DATABASE_URL ? {
@@ -42,9 +81,6 @@ pool.connect((err, client, release) => {
     }
 });
 
-// ══════════════════════════════════════════════
-// ROUTES
-// ══════════════════════════════════════════════
 
 // Home route - API info
 app.get('/', (req, res) => {
@@ -61,6 +97,502 @@ app.get('/', (req, res) => {
         }
     });
 });
+
+// POST signup - create user account
+app.post('/auth/signup', async (req, res) => {
+    try {
+        const { fullName, email, password, dateOfBirth } = req.body;
+
+        if (!fullName || !email || !password || !dateOfBirth) {
+            return res.status(400).json({
+                success: false,
+                error: 'fullName, email, password, and dateOfBirth are required'
+            });
+        }
+
+        if (password.length < 6) {
+            return res.status(400).json({
+                success: false,
+                error: 'Password must be at least 6 characters long'
+            });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        const insertUserQuery = `
+            INSERT INTO Users (FullName, Email, PasswordHash, DateOfBirth)
+            VALUES ($1, $2, $3, $4)
+            RETURNING UserID, FullName, Email, DateOfBirth
+        `;
+
+        const result = await pool.query(insertUserQuery, [
+            fullName.trim(),
+            email.trim().toLowerCase(),
+            hashedPassword,
+            dateOfBirth
+        ]);
+
+        const user = formatUser(result.rows[0]);
+        const token = createAuthToken(user);
+
+        return res.status(201).json({
+            success: true,
+            message: 'Signup successful',
+            data: {
+                token,
+                user
+            }
+        });
+    } catch (error) {
+        if (error.code === '23505') {
+            return res.status(409).json({
+                success: false,
+                error: 'Email is already registered'
+            });
+        }
+
+        console.error('Error during signup:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Signup failed'
+        });
+    }
+});
+
+// POST login - email and password only
+app.post('/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'email and password are required'
+            });
+        }
+
+        const query = `
+            SELECT UserID, FullName, Email, PasswordHash, DateOfBirth
+            FROM Users
+            WHERE Email = $1
+            LIMIT 1
+        `;
+
+        const result = await pool.query(query, [email.trim().toLowerCase()]);
+
+        if (result.rows.length === 0) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid email or password'
+            });
+        }
+
+        const row = result.rows[0];
+        const isValidPassword = await bcrypt.compare(password, row.passwordhash);
+
+        if (!isValidPassword) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid email or password'
+            });
+        }
+
+        const user = formatUser(row);
+        const token = createAuthToken(user);
+
+        return res.json({
+            success: true,
+            message: 'Login successful',
+            data: {
+                token,
+                user
+            }
+        });
+    } catch (error) {
+        console.error('Error during login:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Login failed'
+        });
+    }
+});
+
+// GET media reviews with website rating aggregate
+app.get('/reviews/media/:mediaId', async (req, res) => {
+    try {
+        const { mediaId } = req.params;
+
+        const mediaTypeResult = await pool.query(
+            `
+            SELECT MediaType
+            FROM Media
+            WHERE MediaID = $1
+            LIMIT 1
+            `,
+            [mediaId]
+        );
+
+        if (mediaTypeResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Media not found'
+            });
+        }
+
+        if (mediaTypeResult.rows[0].mediatype !== 'Movie') {
+            return res.status(400).json({
+                success: false,
+                error: 'TV series reviews are episode-based. Use episode review endpoints.'
+            });
+        }
+
+        const [aggregateResult, reviewsResult] = await Promise.all([
+            pool.query(
+                `
+                SELECT
+                    ROUND(AVG(Rating)::numeric, 1) as website_rating,
+                    COUNT(*)::int as review_count
+                FROM Review
+                WHERE MediaID = $1
+                `,
+                [mediaId]
+            ),
+            pool.query(
+                `
+                SELECT
+                    r.ReviewID,
+                    r.ReviewText,
+                    r.Rating,
+                    r.PostDate,
+                    r.SpoilerFlag,
+                    r.EditedAt,
+                    u.UserID,
+                    u.FullName
+                FROM Review r
+                JOIN Users u ON r.UserID = u.UserID
+                WHERE r.MediaID = $1
+                ORDER BY r.PostDate DESC
+                LIMIT 50
+                `,
+                [mediaId]
+            )
+        ]);
+
+        const aggregate = aggregateResult.rows[0] || {};
+
+        return res.json({
+            success: true,
+            data: {
+                websiteRating: aggregate.website_rating,
+                reviewCount: aggregate.review_count || 0,
+                reviews: reviewsResult.rows
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching media reviews:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch reviews'
+        });
+    }
+});
+
+// POST media review - creates or updates the user's review for the title
+app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    let transactionStarted = false;
+    try {
+        const { mediaId } = req.params;
+        const { rating, reviewText, spoilerFlag } = req.body;
+
+        const numericRating = parseInt(rating, 10);
+
+        if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 10) {
+            return res.status(400).json({
+                success: false,
+                error: 'rating must be an integer between 1 and 10'
+            });
+        }
+
+        const mediaTypeResult = await client.query(
+            `
+            SELECT MediaType
+            FROM Media
+            WHERE MediaID = $1
+            LIMIT 1
+            `,
+            [mediaId]
+        );
+
+        if (mediaTypeResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Media not found'
+            });
+        }
+
+        if (mediaTypeResult.rows[0].mediatype !== 'Movie') {
+            return res.status(400).json({
+                success: false,
+                error: 'TV series reviews are episode-based. Use episode review endpoint.'
+            });
+        }
+
+        await client.query('BEGIN');
+        transactionStarted = true;
+        // Serialize writes for the same (user, media) pair to avoid duplicates.
+        await client.query(
+            'SELECT pg_advisory_xact_lock(hashtext($1))',
+            [`review:${req.user.userId}:${mediaId}`]
+        );
+
+        const existingReview = await client.query(
+            `
+            SELECT ReviewID
+            FROM Review
+            WHERE UserID = $1 AND MediaID = $2
+            LIMIT 1
+            `,
+            [req.user.userId, mediaId]
+        );
+
+        if (existingReview.rows.length > 0) {
+            const updated = await client.query(
+                `
+                UPDATE Review
+                SET Rating = $1,
+                    ReviewText = $2,
+                    SpoilerFlag = $3,
+                    EditedAt = CURRENT_TIMESTAMP
+                WHERE ReviewID = $4
+                RETURNING ReviewID, UserID, MediaID, Rating, ReviewText, SpoilerFlag, PostDate, EditedAt
+                `,
+                [
+                    numericRating,
+                    reviewText || null,
+                    Boolean(spoilerFlag),
+                    existingReview.rows[0].reviewid
+                ]
+            );
+
+            await client.query('COMMIT');
+            transactionStarted = false;
+
+            return res.json({
+                success: true,
+                message: 'Review updated',
+                data: updated.rows[0]
+            });
+        }
+
+        const inserted = await client.query(
+            `
+            INSERT INTO Review (UserID, MediaID, ReviewText, Rating, SpoilerFlag)
+            VALUES ($1, $2, $3, $4, $5)
+            RETURNING ReviewID, UserID, MediaID, Rating, ReviewText, SpoilerFlag, PostDate, EditedAt
+            `,
+            [
+                req.user.userId,
+                mediaId,
+                reviewText || null,
+                numericRating,
+                Boolean(spoilerFlag)
+            ]
+        );
+
+        await client.query('COMMIT');
+        transactionStarted = false;
+
+        return res.status(201).json({
+            success: true,
+            message: 'Review created',
+            data: inserted.rows[0]
+        });
+    } catch (error) {
+        if (transactionStarted) {
+            await client.query('ROLLBACK');
+        }
+        console.error('Error creating/updating media review:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to submit review'
+        });
+    } finally {
+        client.release();
+    }
+});
+
+// GET episode reviews with aggregate rating
+app.get('/reviews/episode/:mediaId/:seasonNo/:episodeNo', async (req, res) => {
+    try {
+        const { mediaId, seasonNo, episodeNo } = req.params;
+
+        const [aggregateResult, reviewsResult] = await Promise.all([
+            pool.query(
+                `
+                SELECT
+                    ROUND(AVG(Rating)::numeric, 1) as website_rating,
+                    COUNT(*)::int as review_count
+                FROM Review
+                WHERE EpisodeMediaID = $1 AND EpisodeSeasonNo = $2 AND EpisodeNo = $3
+                `,
+                [mediaId, seasonNo, episodeNo]
+            ),
+            pool.query(
+                `
+                SELECT
+                    r.ReviewID,
+                    r.ReviewText,
+                    r.Rating,
+                    r.PostDate,
+                    r.SpoilerFlag,
+                    r.EditedAt,
+                    u.UserID,
+                    u.FullName
+                FROM Review r
+                JOIN Users u ON r.UserID = u.UserID
+                WHERE r.EpisodeMediaID = $1 AND r.EpisodeSeasonNo = $2 AND r.EpisodeNo = $3
+                ORDER BY r.PostDate DESC
+                LIMIT 50
+                `,
+                [mediaId, seasonNo, episodeNo]
+            )
+        ]);
+
+        const aggregate = aggregateResult.rows[0] || {};
+
+        return res.json({
+            success: true,
+            data: {
+                websiteRating: aggregate.website_rating,
+                reviewCount: aggregate.review_count || 0,
+                reviews: reviewsResult.rows
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching episode reviews:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch episode reviews'
+        });
+    }
+});
+
+// POST episode review - one review per user per episode (update if existing)
+app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    let transactionStarted = false;
+    try {
+        const { mediaId, seasonNo, episodeNo } = req.params;
+        const { rating, reviewText, spoilerFlag } = req.body;
+
+        const numericRating = parseInt(rating, 10);
+
+        if (!Number.isInteger(numericRating) || numericRating < 1 || numericRating > 10) {
+            return res.status(400).json({
+                success: false,
+                error: 'rating must be an integer between 1 and 10'
+            });
+        }
+
+        await client.query('BEGIN');
+        transactionStarted = true;
+
+        await client.query(
+            'SELECT pg_advisory_xact_lock(hashtext($1))',
+            [`review_ep:${req.user.userId}:${mediaId}:${seasonNo}:${episodeNo}`]
+        );
+
+        const existingReview = await client.query(
+            `
+            SELECT ReviewID
+            FROM Review
+            WHERE UserID = $1
+              AND EpisodeMediaID = $2
+              AND EpisodeSeasonNo = $3
+              AND EpisodeNo = $4
+            LIMIT 1
+            `,
+            [req.user.userId, mediaId, seasonNo, episodeNo]
+        );
+
+        if (existingReview.rows.length > 0) {
+            const updated = await client.query(
+                `
+                UPDATE Review
+                SET Rating = $1,
+                    ReviewText = $2,
+                    SpoilerFlag = $3,
+                    EditedAt = CURRENT_TIMESTAMP
+                WHERE ReviewID = $4
+                RETURNING ReviewID, UserID, EpisodeMediaID, EpisodeSeasonNo, EpisodeNo, Rating, ReviewText, SpoilerFlag, PostDate, EditedAt
+                `,
+                [
+                    numericRating,
+                    reviewText || null,
+                    Boolean(spoilerFlag),
+                    existingReview.rows[0].reviewid
+                ]
+            );
+
+            await client.query('COMMIT');
+            transactionStarted = false;
+
+            return res.json({
+                success: true,
+                message: 'Episode review updated',
+                data: updated.rows[0]
+            });
+        }
+
+        const inserted = await client.query(
+            `
+            INSERT INTO Review (
+                UserID,
+                MediaID,
+                EpisodeMediaID,
+                EpisodeSeasonNo,
+                EpisodeNo,
+                ReviewText,
+                Rating,
+                SpoilerFlag
+            )
+            VALUES ($1, NULL, $2, $3, $4, $5, $6, $7)
+            RETURNING ReviewID, UserID, EpisodeMediaID, EpisodeSeasonNo, EpisodeNo, Rating, ReviewText, SpoilerFlag, PostDate, EditedAt
+            `,
+            [
+                req.user.userId,
+                mediaId,
+                seasonNo,
+                episodeNo,
+                reviewText || null,
+                numericRating,
+                Boolean(spoilerFlag)
+            ]
+        );
+
+        await client.query('COMMIT');
+        transactionStarted = false;
+
+        return res.status(201).json({
+            success: true,
+            message: 'Episode review created',
+            data: inserted.rows[0]
+        });
+    } catch (error) {
+        if (transactionStarted) {
+            await client.query('ROLLBACK');
+        }
+        console.error('Error creating/updating episode review:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to submit episode review'
+        });
+    } finally {
+        client.release();
+    }
+});
+
 
 // GET all movies
 app.get('/movies', async (req, res) => {
@@ -230,13 +762,22 @@ app.get('/movies/:id', async (req, res) => {
             WHERE p.MediaID = $1
         `;
 
+        const websiteRatingQuery = `
+            SELECT
+                ROUND(AVG(Rating)::numeric, 1) as website_rating,
+                COUNT(*)::int as review_count
+            FROM Review
+            WHERE MediaID = $1
+        `;
+
         // Execute all queries in parallel (faster!)
-        const [movieResult, genreResult, castResult, crewResult, studioResult] = await Promise.all([
+        const [movieResult, genreResult, castResult, crewResult, studioResult, websiteRatingResult] = await Promise.all([
             pool.query(movieQuery, [id]),
             pool.query(genreQuery, [id]),
             pool.query(castQuery, [id]),
             pool.query(crewQuery, [id]),
-            pool.query(studioQuery, [id])
+            pool.query(studioQuery, [id]),
+            pool.query(websiteRatingQuery, [id])
         ]);
 
         // Check if movie exists
@@ -253,6 +794,8 @@ app.get('/movies/:id', async (req, res) => {
         movie.cast = castResult.rows;
         movie.crew = crewResult.rows;
         movie.studios = studioResult.rows;
+        movie.websiteRating = websiteRatingResult.rows[0]?.website_rating || null;
+        movie.reviewCount = websiteRatingResult.rows[0]?.review_count || 0;
 
         res.json({
             success: true,
@@ -498,10 +1041,39 @@ app.get('/tvshows/:id/seasons', async (req, res) => {
             ORDER BY SeasonNo, EpisodeNo
         `;
 
-        const [tvResult, seasonsResult, episodesResult] = await Promise.all([
+        const seasonWebsiteRatingQuery = `
+            SELECT
+                EpisodeSeasonNo as seasonno,
+                ROUND(AVG(Rating)::numeric, 1) as website_season_rating,
+                COUNT(*)::int as season_review_count
+            FROM Review
+            WHERE EpisodeMediaID = $1
+            GROUP BY EpisodeSeasonNo
+        `;
+
+        const showWebsiteRatingQuery = `
+            WITH season_scores AS (
+                SELECT EpisodeSeasonNo, AVG(Rating) as season_avg
+                FROM Review
+                WHERE EpisodeMediaID = $1
+                GROUP BY EpisodeSeasonNo
+            )
+            SELECT
+                ROUND(AVG(season_avg)::numeric, 1) as website_rating,
+                (
+                    SELECT COUNT(*)::int
+                    FROM Review
+                    WHERE EpisodeMediaID = $1
+                ) as review_count
+            FROM season_scores
+        `;
+
+        const [tvResult, seasonsResult, episodesResult, seasonWebsiteResult, showWebsiteResult] = await Promise.all([
             pool.query(tvQuery, [id]),
             pool.query(seasonsQuery, [id]),
-            pool.query(episodesQuery, [id])
+            pool.query(episodesQuery, [id]),
+            pool.query(seasonWebsiteRatingQuery, [id]),
+            pool.query(showWebsiteRatingQuery, [id])
         ]);
 
         if (tvResult.rows.length === 0) {
@@ -512,8 +1084,20 @@ app.get('/tvshows/:id/seasons', async (req, res) => {
         }
 
         const tvShow = tvResult.rows[0];
+        const seasonWebsiteMap = new Map(
+            seasonWebsiteResult.rows.map((row) => [
+                Number(row.seasonno),
+                {
+                    websiteSeasonRating: row.website_season_rating,
+                    seasonReviewCount: row.season_review_count || 0
+                }
+            ])
+        );
+        tvShow.websiteRating = showWebsiteResult.rows[0]?.website_rating || null;
+        tvShow.reviewCount = showWebsiteResult.rows[0]?.review_count || 0;
         tvShow.seasons = seasonsResult.rows.map((season) => ({
             ...season,
+            ...seasonWebsiteMap.get(Number(season.seasonno)),
             episodes: episodesResult.rows.filter((ep) => ep.seasonno === season.seasonno)
         }));
 
@@ -593,6 +1177,33 @@ app.get('/tvshows/:id', async (req, res) => {
             WHERE p.MediaID = $1
         `;
 
+        const seasonWebsiteRatingQuery = `
+            SELECT
+                EpisodeSeasonNo as seasonno,
+                ROUND(AVG(Rating)::numeric, 1) as website_season_rating,
+                COUNT(*)::int as season_review_count
+            FROM Review
+            WHERE EpisodeMediaID = $1
+            GROUP BY EpisodeSeasonNo
+        `;
+
+        const showWebsiteRatingQuery = `
+            WITH season_scores AS (
+                SELECT EpisodeSeasonNo, AVG(Rating) as season_avg
+                FROM Review
+                WHERE EpisodeMediaID = $1
+                GROUP BY EpisodeSeasonNo
+            )
+            SELECT
+                ROUND(AVG(season_avg)::numeric, 1) as website_rating,
+                (
+                    SELECT COUNT(*)::int
+                    FROM Review
+                    WHERE EpisodeMediaID = $1
+                ) as review_count
+            FROM season_scores
+        `;
+
         // 6. Get seasons summary
         const seasonsQuery = `
             SELECT 
@@ -622,7 +1233,7 @@ app.get('/tvshows/:id', async (req, res) => {
         `;
 
         // Execute all queries in parallel
-        const [tvResult, genreResult, castResult, crewResult, studioResult, seasonsResult, episodesResult] = 
+        const [tvResult, genreResult, castResult, crewResult, studioResult, seasonsResult, episodesResult, seasonWebsiteResult, showWebsiteResult] = 
             await Promise.all([
                 pool.query(tvQuery, [id]),
                 pool.query(genreQuery, [id]),
@@ -630,7 +1241,9 @@ app.get('/tvshows/:id', async (req, res) => {
                 pool.query(crewQuery, [id]),
                 pool.query(studioQuery, [id]),
                 pool.query(seasonsQuery, [id]),
-                pool.query(episodesQuery, [id])
+                pool.query(episodesQuery, [id]),
+                pool.query(seasonWebsiteRatingQuery, [id]),
+                pool.query(showWebsiteRatingQuery, [id])
             ]);
 
         // Check if TV show exists
@@ -647,10 +1260,22 @@ app.get('/tvshows/:id', async (req, res) => {
         tvShow.cast = castResult.rows;
         tvShow.crew = crewResult.rows;
         tvShow.studios = studioResult.rows;
+        tvShow.websiteRating = showWebsiteResult.rows[0]?.website_rating || null;
+        tvShow.reviewCount = showWebsiteResult.rows[0]?.review_count || 0;
+        const seasonWebsiteMap = new Map(
+            seasonWebsiteResult.rows.map((row) => [
+                Number(row.seasonno),
+                {
+                    websiteSeasonRating: row.website_season_rating,
+                    seasonReviewCount: row.season_review_count || 0
+                }
+            ])
+        );
         
         // Attach episodes to each season  
         tvShow.seasons = seasonsResult.rows.map((season) => ({
             ...season,
+            ...seasonWebsiteMap.get(Number(season.seasonno)),
             episodes: episodesResult.rows.filter(ep => ep.seasonno === season.seasonno)
         }));
 
