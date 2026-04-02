@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { MessageSquare, ThumbsUp, ThumbsDown, Plus, User } from 'lucide-react';
+import { MessageSquare, ThumbsUp, ThumbsDown, Plus } from 'lucide-react';
 import '../Blogs.css';
+import { getAuthToken, getStoredAuth } from '../utils/auth';
 
 export default function BlogsPage() {
   const navigate = useNavigate();
@@ -11,16 +12,10 @@ export default function BlogsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [sort, setSort] = useState('newest'); // 'newest' or 'popular'
   
-  // --- MOCK AUTH FOR TESTING ---
-  // Since you haven't built login yet, you can toggle this to test features!
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const currentUser = isLoggedIn ? { userId: 1, name: "Test User" } : null;
+  const { user: currentUser } = getStoredAuth();
+  const token = getAuthToken();
 
-  useEffect(() => {
-    fetchBlogs();
-  }, [page, sort]);
-
-  const fetchBlogs = async () => {
+  const fetchBlogs = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`http://localhost:3000/blogs?page=${page}&limit=10&sort=${sort}`);
@@ -34,18 +29,25 @@ export default function BlogsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, sort]);
+
+  useEffect(() => {
+    fetchBlogs();
+  }, [fetchBlogs]);
 
   const handleVote = async (e, blogId, type) => {
     e.preventDefault(); // Prevent navigating to blog detail page
-    if (!currentUser) {
+    if (!currentUser || !token) {
       alert("You must be logged in to vote!");
       return;
     }
     
     try {
       const response = await fetch(`http://localhost:3000/blogs/${blogId}/${type}`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
       const json = await response.json();
       if (json.success) {
@@ -106,7 +108,7 @@ export default function BlogsPage() {
   };
 
   const handleCreateClick = () => {
-    if (!currentUser) {
+    if (!currentUser || !token) {
       alert("You must be logged in to create a post!");
       return;
     }
@@ -115,15 +117,6 @@ export default function BlogsPage() {
 
   return (
     <div className="page blogs-page">
-      {/* Dev Tool: Fake Login Toggle */}
-      <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #f59e0b' }}>
-        <strong>🛠️ Dev Tool:</strong>
-        <span>Status: <b>{currentUser ? `Logged in as ${currentUser.name}` : "Guest view"}</b></span>
-        <button className="btn btn-secondary" onClick={() => setIsLoggedIn(!isLoggedIn)}>
-          <User size={16} /> Toggle Login
-        </button>
-      </div>
-
       <div className="blogs-header">
         <h1>Community Blogs</h1>
         <div className="blogs-controls">

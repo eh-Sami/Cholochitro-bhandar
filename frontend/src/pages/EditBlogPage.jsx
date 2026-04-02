@@ -3,6 +3,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Link as LinkIcon } from 'lucide-react';
 import MentionModal from '../components/MentionModal';
 import '../Blogs.css';
+import { getAuthToken, getStoredAuth } from '../utils/auth';
 
 export default function EditBlogPage() {
   const { id } = useParams();
@@ -16,8 +17,8 @@ export default function EditBlogPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const contentInputRef = useRef(null);
 
-  // Fake user (same as other pages)
-  const currentUser = { userId: 1, name: "Test User" }; 
+  const { user: currentUser } = getStoredAuth();
+  const token = getAuthToken();
 
   const [showMentionModal, setShowMentionModal] = useState(false);
 
@@ -101,6 +102,10 @@ export default function EditBlogPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!currentUser || !token) {
+      alert('Please login to edit a blog post.');
+      return;
+    }
     if (!title.trim() || !content.trim()) return alert("Title and Content are required.");
     
     setIsSubmitting(true);
@@ -108,10 +113,10 @@ export default function EditBlogPage() {
       const response = await fetch(`http://localhost:3000/blogs/${id}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
         },
         body: JSON.stringify({
-          userId: currentUser.userId,
           blogTitle: title,
           content: content,
           mentions: mentions

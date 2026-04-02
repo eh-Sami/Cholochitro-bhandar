@@ -1520,79 +1520,39 @@ app.get('/search', async (req, res) => {
     }
 });
 
-// ══════════════════════════════════════════════
-// USER ROUTES
-// ══════════════════════════════════════════════
-
-// POST create a new user
-app.post('/users', async (req, res) => {
+app.get('/lists/search', async (req, res) => {
     try {
-        const { fullName, email, password, dateOfBirth } = req.body;
+        const query = req.query.q;
 
-        // Validate required fields
-        if (!fullName || !email || !password) {
+        if (!query || query.trim().length === 0) {
             return res.status(400).json({
                 success: false,
-                error: 'fullName, email, and password are required'
+                error: 'q is required'
             });
         }
+
+        const limit = parseInt(req.query.limit) || 10;
 
         const result = await pool.query(
-            `INSERT INTO Users (FullName, Email, PasswordHash, DateOfBirth)
-             VALUES ($1, $2, $3, $4)
-             RETURNING UserID, FullName, Email, DateOfBirth`,
-            [fullName, email, password, dateOfBirth || null]
+            `
+            SELECT ul.ListID, ul.ListName, ul.IsPublic, u.FullName AS Creator
+            FROM User_List ul
+            JOIN Users u ON ul.UserID = u.UserID
+            WHERE ul.ListName ILIKE $1 AND ul.IsPublic = TRUE
+            LIMIT $2
+            `,
+            [`%${query}%`, limit]
         );
 
-        res.status(201).json({
+        return res.json({
             success: true,
-            data: result.rows[0]
-        });
-
-    } catch (error) {
-        // Handle duplicate email
-        if (error.code === '23505') {
-            return res.status(409).json({
-                success: false,
-                error: 'A user with this email already exists'
-            });
-        }
-        console.error('Error creating user:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to create user'
-        });
-    }
-});
-
-// GET user by ID
-app.get('/users/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-
-        const result = await pool.query(
-            `SELECT UserID, FullName, Email, DateOfBirth
-             FROM Users
-             WHERE UserID = $1`,
-            [id]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({
-                success: false,
-                error: 'User not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            data: result.rows[0]
+            data: result.rows
         });
     } catch (error) {
-        console.error('Error fetching user:', error);
-        res.status(500).json({
+        console.error('Error searching lists:', error);
+        return res.status(500).json({
             success: false,
-            error: 'Failed to fetch user'
+            error: 'List search failed'
         });
     }
 });
@@ -1601,164 +1561,161 @@ app.get('/users/:id', async (req, res) => {
 // BLOG ROUTES
 // ══════════════════════════════════════════════
 
-// GET all blogs (paginated)
 app.get('/blogs', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
         const offset = (page - 1) * limit;
-        const sort = req.query.sort || 'newest'; // 'newest' or 'popular'
+        const sort = req.query.sort || 'newest';
 
-        let orderBy;
-        if (sort === 'popular') {
-            orderBy = 'b.UpvoteCount DESC, b.PostDate DESC';
-        } else {
-            orderBy = 'b.PostDate DESC';
-        }
-
-        const query = `
-            SELECT 
-                b.BlogID,
-                b.BlogTitle,
-                LEFT(b.Content, 200) AS ContentPreview,
-                b.PostDate,
-                b.UpvoteCount,
-                b.DownvoteCount,
-                b.EditedAt,
-                b.UserID,
-                u.FullName AS AuthorName,
-                (SELECT COUNT(*) FROM Comments WHERE BlogID = b.BlogID) AS CommentCount
-            FROM Blog b
-            JOIN Users u ON b.UserID = u.UserID
-            ORDER BY ${orderBy}
-            LIMIT $1 OFFSET $2
-        `;
-
-        const countQuery = `SELECT COUNT(*) AS total FROM Blog`;
+        const orderBy = sort === 'popular'
+            ? 'b.UpvoteCount DESC, b.PostDate DESC'
+            : 'b.PostDate DESC';
 
         const [result, countResult] = await Promise.all([
-            pool.query(query, [limit, offset]),
-            pool.query(countQuery)
+            pool.query(
+                `
+                SELECT
+                    b.BlogID,
+                    b.BlogTitle,
+                    LEFT(b.Content, 200) AS ContentPreview,
+                    b.PostDate,
+                    b.UpvoteCount,
+                    b.DownvoteCount,
+                    b.EditedAt,
+                    b.UserID,
+                    u.FullName AS AuthorName,
+                    (SELECT COUNT(*) FROM Comments WHERE BlogID = b.BlogID) AS CommentCount
+                FROM Blog b
+                JOIN Users u ON b.UserID = u.UserID
+                ORDER BY ${orderBy}
+                LIMIT $1 OFFSET $2
+                `,
+                [limit, offset]
+            ),
+            pool.query('SELECT COUNT(*) AS total FROM Blog')
         ]);
 
-        const total = parseInt(countResult.rows[0].total);
+        const total = parseInt(countResult.rows[0].total, 10);
 
-        res.json({
+        return res.json({
             success: true,
             data: result.rows,
             pagination: {
-                page: page,
-                limit: limit,
-                total: total,
+                page,
+                limit,
+                total,
                 pages: Math.ceil(total / limit)
             }
         });
     } catch (error) {
         console.error('Error fetching blogs:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to fetch blogs'
         });
     }
 });
 
-// GET single blog by ID
 app.get('/blogs/:id', async (req, res) => {
     try {
         const { id } = req.params;
 
-        const [result, mentionsResult] = await Promise.all([
+        const [blogResult, mentionResult] = await Promise.all([
             pool.query(
-            `SELECT 
-                b.BlogID,
-                b.BlogTitle,
-                b.Content,
-                b.PostDate,
-                b.UpvoteCount,
-                b.DownvoteCount,
-                b.EditedAt,
-                b.UserID,
-                u.FullName AS AuthorName
-            FROM Blog b
-            JOIN Users u ON b.UserID = u.UserID
-            WHERE b.BlogID = $1`,
-            [id]
-        ), 
+                `
+                SELECT
+                    b.BlogID,
+                    b.BlogTitle,
+                    b.Content,
+                    b.PostDate,
+                    b.UpvoteCount,
+                    b.DownvoteCount,
+                    b.EditedAt,
+                    b.UserID,
+                    u.FullName AS AuthorName
+                FROM Blog b
+                JOIN Users u ON b.UserID = u.UserID
+                WHERE b.BlogID = $1
+                `,
+                [id]
+            ),
             pool.query(
-            `SELECT 
-                bm.MentionID,
-                bm.MediaID, bm.PersonID, bm.ListID,
-                m.Title AS MediaTitle, m.Poster AS MediaPoster, m.MediaType,
-                p.FullName AS PersonName, p.Picture AS PersonPicture,
-                ul.ListName, ul.IsPublic
-            FROM Blog_Mentions bm
-            LEFT JOIN Media m ON bm.MediaID = m.MediaID
-            LEFT JOIN Person p ON bm.PersonID = p.PersonID
-            LEFT JOIN User_List ul ON bm.ListID = ul.ListID
-            WHERE bm.BlogID = $1`,
-            [id]
-        )]);
+                `
+                SELECT
+                    bm.BlogID,
+                    bm.MediaID,
+                    bm.PersonID,
+                    bm.ListID,
+                    m.Title AS MediaTitle,
+                    p.FullName AS PersonName,
+                    ul.ListName
+                FROM Blog_Mentions bm
+                LEFT JOIN Media m ON bm.MediaID = m.MediaID
+                LEFT JOIN Person p ON bm.PersonID = p.PersonID
+                LEFT JOIN User_List ul ON bm.ListID = ul.ListID
+                WHERE bm.BlogID = $1
+                `,
+                [id]
+            )
+        ]);
 
-        if (result.rows.length === 0) {
+        if (blogResult.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Blog not found'
             });
         }
 
-        // Group mentions by type
-        const blog = result.rows[0];
-        const allMentions = mentionsResult.rows;
-        blog.mentions = {
-            media: allMentions.filter(m => m.mediaid).map(m => ({
-                mediaId: m.mediaid, title: m.mediatitle, poster: m.mediaposter, mediaType: m.mediatype
-            })),
-            persons: allMentions.filter(m => m.personid).map(m => ({
-                personId: m.personid, name: m.personname, picture: m.personpicture
-            })),
-            lists: allMentions.filter(m => m.listid).map(m => ({
-                listId: m.listid, listName: m.listname, isPublic: m.ispublic
-            }))
-        };
+        const mentions = mentionResult.rows.map((row) => {
+            if (row.mediaid) {
+                return { type: 'media', id: row.mediaid, title: row.mediatitle || 'Media' };
+            }
+            if (row.personid) {
+                return { type: 'person', id: row.personid, title: row.personname || 'Person' };
+            }
+            return { type: 'list', id: row.listid, title: row.listname || 'List' };
+        });
 
-        res.json({
+        return res.json({
             success: true,
-            data: blog
+            data: {
+                ...blogResult.rows[0],
+                mentions
+            }
         });
     } catch (error) {
         console.error('Error fetching blog:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to fetch blog'
         });
     }
 });
 
-// POST create a new blog
-app.post('/blogs', async (req, res) => {
+app.post('/blogs', requireAuth, async (req, res) => {
     try {
-        const { userId, blogTitle, content, mentions } = req.body;
+        const { blogTitle, content, mentions } = req.body;
 
-        // Validate required fields
-        if (!userId || !blogTitle || !content) {
+        if (!blogTitle || !content) {
             return res.status(400).json({
                 success: false,
-                error: 'userId, blogTitle, and content are required'
+                error: 'blogTitle and content are required'
             });
         }
 
         const result = await pool.query(
-            `INSERT INTO Blog (UserID, BlogTitle, Content)
-             VALUES ($1, $2, $3)
-             RETURNING BlogID, UserID, BlogTitle, Content, PostDate, UpvoteCount, DownvoteCount`,
-            [userId, blogTitle, content]
+            `
+            INSERT INTO Blog (UserID, BlogTitle, Content)
+            VALUES ($1, $2, $3)
+            RETURNING BlogID, UserID, BlogTitle, Content, PostDate, UpvoteCount, DownvoteCount, EditedAt
+            `,
+            [req.user.userId, blogTitle, content]
         );
 
         const blogId = result.rows[0].blogid;
 
-        // Insert mentions (media, person, or list)
-        if (mentions && mentions.length > 0) {
-            // Deduplicate by type+id
+        if (mentions && Array.isArray(mentions) && mentions.length > 0) {
             const seen = new Set();
             for (const mention of mentions) {
                 const key = `${mention.type}:${mention.id}`;
@@ -1766,57 +1723,40 @@ app.post('/blogs', async (req, res) => {
                 seen.add(key);
 
                 await pool.query(
-                    `INSERT INTO Blog_Mentions (BlogID, MediaID, PersonID, ListID)
-                     VALUES ($1, $2, $3, $4)
-                     ON CONFLICT DO NOTHING`,
+                    `
+                    INSERT INTO Blog_Mentions (BlogID, MediaID, PersonID, ListID)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT DO NOTHING
+                    `,
                     [
                         blogId,
                         mention.type === 'media' ? mention.id : null,
                         mention.type === 'person' ? mention.id : null,
                         mention.type === 'list' ? mention.id : null
-                    ]);
+                    ]
+                );
             }
         }
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             data: result.rows[0]
         });
-
     } catch (error) {
-        // Handle invalid UserID (foreign key violation)
-        if (error.code === '23503') {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid userId — user does not exist'
-            });
-        }
         console.error('Error creating blog:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to create blog'
         });
     }
 });
 
-// PUT update a blog (only author can edit)
-app.put('/blogs/:id', async (req, res) => {
+app.put('/blogs/:id', requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, blogTitle, content, mentions } = req.body;
+        const { blogTitle, content, mentions } = req.body;
 
-        if (!userId) {
-            return res.status(400).json({
-                success: false,
-                error: 'userId is required to verify authorship'
-            });
-        }
-
-        // Check if blog exists and belongs to this user
-        const blogCheck = await pool.query(
-            'SELECT UserID FROM Blog WHERE BlogID = $1',
-            [id]
-        );
+        const blogCheck = await pool.query('SELECT UserID FROM Blog WHERE BlogID = $1', [id]);
 
         if (blogCheck.rows.length === 0) {
             return res.status(404).json({
@@ -1825,7 +1765,7 @@ app.put('/blogs/:id', async (req, res) => {
             });
         }
 
-        if (blogCheck.rows[0].userid !== parseInt(userId)) {
+        if (Number(blogCheck.rows[0].userid) !== Number(req.user.userId)) {
             return res.status(403).json({
                 success: false,
                 error: 'You can only edit your own blogs'
@@ -1833,21 +1773,20 @@ app.put('/blogs/:id', async (req, res) => {
         }
 
         const result = await pool.query(
-            `UPDATE Blog 
-             SET BlogTitle = COALESCE($1, BlogTitle),
-                 Content = COALESCE($2, Content),
-                 EditedAt = CURRENT_TIMESTAMP
-             WHERE BlogID = $3
-             RETURNING BlogID, BlogTitle, Content, PostDate, EditedAt, UpvoteCount, DownvoteCount`,
+            `
+            UPDATE Blog
+            SET BlogTitle = COALESCE($1, BlogTitle),
+                Content = COALESCE($2, Content),
+                EditedAt = CURRENT_TIMESTAMP
+            WHERE BlogID = $3
+            RETURNING BlogID, BlogTitle, Content, PostDate, EditedAt, UpvoteCount, DownvoteCount
+            `,
             [blogTitle || null, content || null, id]
         );
 
-        // Update mentions if provided
-        if (mentions && mentions.length > 0) {
-            await pool.query(
-                `DELETE FROM Blog_Mentions WHERE BlogID = $1`,
-                [id]
-            );
+        if (Array.isArray(mentions)) {
+            await pool.query('DELETE FROM Blog_Mentions WHERE BlogID = $1', [id]);
+
             const seen = new Set();
             for (const mention of mentions) {
                 const key = `${mention.type}:${mention.id}`;
@@ -1855,9 +1794,11 @@ app.put('/blogs/:id', async (req, res) => {
                 seen.add(key);
 
                 await pool.query(
-                    `INSERT INTO Blog_Mentions (BlogID, MediaID, PersonID, ListID)
-                     VALUES ($1, $2, $3, $4)
-                     ON CONFLICT DO NOTHING`,
+                    `
+                    INSERT INTO Blog_Mentions (BlogID, MediaID, PersonID, ListID)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT DO NOTHING
+                    `,
                     [
                         id,
                         mention.type === 'media' ? mention.id : null,
@@ -1868,38 +1809,24 @@ app.put('/blogs/:id', async (req, res) => {
             }
         }
 
-        res.json({
+        return res.json({
             success: true,
             data: result.rows[0]
         });
-
     } catch (error) {
         console.error('Error updating blog:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to update blog'
         });
     }
 });
 
-// DELETE a blog (only author can delete)
-app.delete('/blogs/:id', async (req, res) => {
+app.delete('/blogs/:id', requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId } = req.body;
 
-        if (!userId) {
-            return res.status(400).json({
-                success: false,
-                error: 'userId is required to verify authorship'
-            });
-        }
-
-        // Check ownership
-        const blogCheck = await pool.query(
-            'SELECT UserID FROM Blog WHERE BlogID = $1',
-            [id]
-        );
+        const blogCheck = await pool.query('SELECT UserID FROM Blog WHERE BlogID = $1', [id]);
 
         if (blogCheck.rows.length === 0) {
             return res.status(404).json({
@@ -1908,7 +1835,7 @@ app.delete('/blogs/:id', async (req, res) => {
             });
         }
 
-        if (blogCheck.rows[0].userid !== parseInt(userId)) {
+        if (Number(blogCheck.rows[0].userid) !== Number(req.user.userId)) {
             return res.status(403).json({
                 success: false,
                 error: 'You can only delete your own blogs'
@@ -1917,30 +1844,30 @@ app.delete('/blogs/:id', async (req, res) => {
 
         await pool.query('DELETE FROM Blog WHERE BlogID = $1', [id]);
 
-        res.json({
+        return res.json({
             success: true,
             message: 'Blog deleted successfully'
         });
-
     } catch (error) {
         console.error('Error deleting blog:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to delete blog'
         });
     }
 });
 
-// POST upvote a blog
-app.post('/blogs/:id/upvote', async (req, res) => {
+app.post('/blogs/:id/upvote', requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
 
         const result = await pool.query(
-            `UPDATE Blog 
-             SET UpvoteCount = UpvoteCount + 1
-             WHERE BlogID = $1
-             RETURNING BlogID, UpvoteCount, DownvoteCount`,
+            `
+            UPDATE Blog
+            SET UpvoteCount = UpvoteCount + 1
+            WHERE BlogID = $1
+            RETURNING BlogID, UpvoteCount, DownvoteCount
+            `,
             [id]
         );
 
@@ -1951,23 +1878,27 @@ app.post('/blogs/:id/upvote', async (req, res) => {
             });
         }
 
-        res.json({ success: true, data: result.rows[0] });
+        return res.json({ success: true, data: result.rows[0] });
     } catch (error) {
         console.error('Error upvoting blog:', error);
-        res.status(500).json({ success: false, error: 'Failed to upvote blog' });
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to upvote blog'
+        });
     }
 });
 
-// POST downvote a blog
-app.post('/blogs/:id/downvote', async (req, res) => {
+app.post('/blogs/:id/downvote', requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
 
         const result = await pool.query(
-            `UPDATE Blog 
-             SET DownvoteCount = DownvoteCount + 1
-             WHERE BlogID = $1
-             RETURNING BlogID, UpvoteCount, DownvoteCount`,
+            `
+            UPDATE Blog
+            SET DownvoteCount = DownvoteCount + 1
+            WHERE BlogID = $1
+            RETURNING BlogID, UpvoteCount, DownvoteCount
+            `,
             [id]
         );
 
@@ -1978,156 +1909,105 @@ app.post('/blogs/:id/downvote', async (req, res) => {
             });
         }
 
-        res.json({ success: true, data: result.rows[0] });
+        return res.json({ success: true, data: result.rows[0] });
     } catch (error) {
         console.error('Error downvoting blog:', error);
-        res.status(500).json({ success: false, error: 'Failed to downvote blog' });
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to downvote blog'
+        });
     }
 });
 
-// ══════════════════════════════════════════════
-// COMMENT ROUTES
-// ══════════════════════════════════════════════
-
-// GET all comments for a blog
 app.get('/blogs/:id/comments', async (req, res) => {
     try {
         const { id } = req.params;
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 50;
-        const offset = (page - 1) * limit;
 
-        const query = `
-            SELECT 
-                c.CommentID,
-                c.CommentText,
-                c.PostDate,
-                c.UpvoteCount,
-                c.DownvoteCount,
-                c.EditedAt,
-                c.ReplyToCommentID,
-                c.UserID,
-                u.FullName AS CommenterName
-            FROM Comments c
-            JOIN Users u ON c.UserID = u.UserID
-            WHERE c.BlogID = $1
-            ORDER BY c.PostDate ASC
-            LIMIT $2 OFFSET $3
-        `;
-
-        const countQuery = `
-            SELECT COUNT(*) AS total 
-            FROM Comments 
-            WHERE BlogID = $1
-        `;
-
-        // Fetch mentions for all comments in this blog
-        const mentionsQuery = `
-            SELECT 
-                cm.CommentID,
-                cm.MediaID, cm.PersonID, cm.ListID,
-                m.Title AS MediaTitle, m.Poster AS MediaPoster, m.MediaType,
-                p.FullName AS PersonName, p.Picture AS PersonPicture,
-                ul.ListName, ul.IsPublic
-            FROM Comment_Mentions cm
-            LEFT JOIN Media m ON cm.MediaID = m.MediaID
-            LEFT JOIN Person p ON cm.PersonID = p.PersonID
-            LEFT JOIN User_List ul ON cm.ListID = ul.ListID
-            WHERE cm.CommentID IN (
-                SELECT CommentID FROM Comments WHERE BlogID = $1
+        const [commentsResult, mentionsResult] = await Promise.all([
+            pool.query(
+                `
+                SELECT
+                    c.CommentID,
+                    c.CommentText,
+                    c.PostDate,
+                    c.UpvoteCount,
+                    c.DownvoteCount,
+                    c.EditedAt,
+                    c.ReplyToCommentID,
+                    c.UserID,
+                    u.FullName AS CommenterName
+                FROM Comments c
+                JOIN Users u ON c.UserID = u.UserID
+                WHERE c.BlogID = $1
+                ORDER BY c.PostDate ASC
+                `,
+                [id]
+            ),
+            pool.query(
+                `
+                SELECT
+                    cm.CommentID,
+                    cm.MediaID,
+                    cm.PersonID,
+                    cm.ListID,
+                    m.Title AS MediaTitle,
+                    p.FullName AS PersonName,
+                    ul.ListName
+                FROM Comment_Mentions cm
+                LEFT JOIN Media m ON cm.MediaID = m.MediaID
+                LEFT JOIN Person p ON cm.PersonID = p.PersonID
+                LEFT JOIN User_List ul ON cm.ListID = ul.ListID
+                WHERE cm.CommentID IN (
+                    SELECT CommentID FROM Comments WHERE BlogID = $1
+                )
+                `,
+                [id]
             )
-        `;
-
-        const [result, countResult, mentionsResult] = await Promise.all([
-            pool.query(query, [id, limit, offset]),
-            pool.query(countQuery, [id]),
-            pool.query(mentionsQuery, [id])
         ]);
 
-        const total = parseInt(countResult.rows[0].total);
-        const allMentions = mentionsResult.rows;
+        const comments = commentsResult.rows.map((comment) => {
+            const commentMentions = mentionsResult.rows.filter((m) => m.commentid === comment.commentid);
 
-        // Attach mentions to each comment
-        const comments = result.rows.map(comment => {
-            const commentMentions = allMentions.filter(m => m.commentid === comment.commentid);
-            comment.mentions = {
-                media: commentMentions.filter(m => m.mediaid).map(m => ({
-                    mediaId: m.mediaid, title: m.mediatitle, poster: m.mediaposter, mediaType: m.mediatype
-                })),
-                persons: commentMentions.filter(m => m.personid).map(m => ({
-                    personId: m.personid, name: m.personname, picture: m.personpicture
-                })),
-                lists: commentMentions.filter(m => m.listid).map(m => ({
-                    listId: m.listid, listName: m.listname, isPublic: m.ispublic
-                }))
+            return {
+                ...comment,
+                mentions: commentMentions.map((mention) => {
+                    if (mention.mediaid) {
+                        return { type: 'media', id: mention.mediaid, title: mention.mediatitle || 'Media' };
+                    }
+                    if (mention.personid) {
+                        return { type: 'person', id: mention.personid, title: mention.personname || 'Person' };
+                    }
+                    return { type: 'list', id: mention.listid, title: mention.listname || 'List' };
+                })
             };
-            return comment;
         });
 
-        res.json({
+        return res.json({
             success: true,
-            data: comments,
-            pagination: {
-                page: page,
-                limit: limit,
-                total: total,
-                pages: Math.ceil(total / limit)
-            }
+            data: comments
         });
     } catch (error) {
         console.error('Error fetching comments:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to fetch comments'
         });
     }
 });
 
-// GET search User Lists
-app.get('/lists/search', async (req, res) => {
+app.post('/blogs/:id/comments', requireAuth, async (req, res) => {
     try {
-        const query = req.query.q;
-        if (!query || query.trim().length === 0) {
-            return res.status(400).json({ success: false, error: 'q is required' });
-        }
-        
-        const limit = parseInt(req.query.limit) || 10;
-        
-        const result = await pool.query(`
-            SELECT ul.ListID, ul.ListName, ul.IsPublic, u.FullName as Creator
-            FROM User_List ul
-            JOIN Users u ON ul.UserID = u.UserID
-            WHERE ul.ListName ILIKE $1 AND ul.IsPublic = TRUE
-            LIMIT $2
-        `, [`%${query}%`, limit]);
-        
-        res.json({ success: true, data: result.rows });
-    } catch (e) {
-        console.error('Error searching lists:', e);
-        res.status(500).json({ success: false, error: 'List search failed' });
-    }
-});
+        const { id } = req.params;
+        const { commentText, replyToCommentId, mentions } = req.body;
 
-// POST add a comment to a blog
-app.post('/blogs/:id/comments', async (req, res) => {
-    try {
-        const blogId = req.params.id;
-        const { userId, commentText, replyToCommentId, mentions } = req.body;
-
-        // Validate required fields
-        if (!userId || !commentText) {
+        if (!commentText) {
             return res.status(400).json({
                 success: false,
-                error: 'userId and commentText are required'
+                error: 'commentText is required'
             });
         }
 
-        // Check if blog exists
-        const blogCheck = await pool.query(
-            'SELECT BlogID FROM Blog WHERE BlogID = $1',
-            [blogId]
-        );
-
+        const blogCheck = await pool.query('SELECT BlogID FROM Blog WHERE BlogID = $1', [id]);
         if (blogCheck.rows.length === 0) {
             return res.status(404).json({
                 success: false,
@@ -2136,15 +2016,17 @@ app.post('/blogs/:id/comments', async (req, res) => {
         }
 
         const result = await pool.query(
-            `INSERT INTO Comments (UserID, BlogID, ReplyToCommentID, CommentText)
-             VALUES ($1, $2, $3, $4)
-             RETURNING CommentID, UserID, BlogID, ReplyToCommentID, CommentText, PostDate, UpvoteCount, DownvoteCount`,
-            [userId, blogId, replyToCommentId || null, commentText]
+            `
+            INSERT INTO Comments (UserID, BlogID, ReplyToCommentID, CommentText)
+            VALUES ($1, $2, $3, $4)
+            RETURNING CommentID, UserID, BlogID, ReplyToCommentID, CommentText, PostDate, UpvoteCount, DownvoteCount, EditedAt
+            `,
+            [req.user.userId, id, replyToCommentId || null, commentText]
         );
 
-        // Insert comment mentions
         const commentId = result.rows[0].commentid;
-        if (mentions && mentions.length > 0) {
+
+        if (Array.isArray(mentions) && mentions.length > 0) {
             const seen = new Set();
             for (const mention of mentions) {
                 const key = `${mention.type}:${mention.id}`;
@@ -2152,57 +2034,47 @@ app.post('/blogs/:id/comments', async (req, res) => {
                 seen.add(key);
 
                 await pool.query(
-                    `INSERT INTO Comment_Mentions (CommentID, MediaID, PersonID, ListID)
-                     VALUES ($1, $2, $3, $4)
-                     ON CONFLICT DO NOTHING`,
+                    `
+                    INSERT INTO Comment_Mentions (CommentID, MediaID, PersonID, ListID)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT DO NOTHING
+                    `,
                     [
                         commentId,
                         mention.type === 'media' ? mention.id : null,
                         mention.type === 'person' ? mention.id : null,
                         mention.type === 'list' ? mention.id : null
-                    ]);
+                    ]
+                );
             }
         }
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             data: result.rows[0]
         });
-
     } catch (error) {
-        if (error.code === '23503') {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid userId or replyToCommentId — referenced record does not exist'
-            });
-        }
         console.error('Error creating comment:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to create comment'
         });
     }
 });
 
-// PUT edit a comment (only author can edit)
-app.put('/comments/:id', async (req, res) => {
+app.put('/comments/:id', requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId, commentText, mentions } = req.body;
+        const { commentText, mentions } = req.body;
 
-        if (!userId || !commentText) {
+        if (!commentText) {
             return res.status(400).json({
                 success: false,
-                error: 'userId and commentText are required'
+                error: 'commentText is required'
             });
         }
 
-        // Check ownership
-        const commentCheck = await pool.query(
-            'SELECT UserID FROM Comments WHERE CommentID = $1',
-            [id]
-        );
-
+        const commentCheck = await pool.query('SELECT UserID FROM Comments WHERE CommentID = $1', [id]);
         if (commentCheck.rows.length === 0) {
             return res.status(404).json({
                 success: false,
@@ -2210,7 +2082,7 @@ app.put('/comments/:id', async (req, res) => {
             });
         }
 
-        if (commentCheck.rows[0].userid !== parseInt(userId)) {
+        if (Number(commentCheck.rows[0].userid) !== Number(req.user.userId)) {
             return res.status(403).json({
                 success: false,
                 error: 'You can only edit your own comments'
@@ -2218,19 +2090,19 @@ app.put('/comments/:id', async (req, res) => {
         }
 
         const result = await pool.query(
-            `UPDATE Comments 
-             SET CommentText = $1, EditedAt = CURRENT_TIMESTAMP
-             WHERE CommentID = $2
-             RETURNING CommentID, CommentText, PostDate, EditedAt, UpvoteCount, DownvoteCount`,
+            `
+            UPDATE Comments
+            SET CommentText = $1,
+                EditedAt = CURRENT_TIMESTAMP
+            WHERE CommentID = $2
+            RETURNING CommentID, CommentText, PostDate, EditedAt, UpvoteCount, DownvoteCount
+            `,
             [commentText, id]
         );
 
-        // Update comment mentions if provided
-        if (mentions && mentions.length > 0) {
-            await pool.query(
-                'DELETE FROM Comment_Mentions WHERE CommentID = $1',
-                [id]
-            );
+        if (Array.isArray(mentions)) {
+            await pool.query('DELETE FROM Comment_Mentions WHERE CommentID = $1', [id]);
+
             const seen = new Set();
             for (const mention of mentions) {
                 const key = `${mention.type}:${mention.id}`;
@@ -2238,9 +2110,11 @@ app.put('/comments/:id', async (req, res) => {
                 seen.add(key);
 
                 await pool.query(
-                    `INSERT INTO Comment_Mentions (CommentID, MediaID, PersonID, ListID)
-                     VALUES ($1, $2, $3, $4)
-                     ON CONFLICT DO NOTHING`,
+                    `
+                    INSERT INTO Comment_Mentions (CommentID, MediaID, PersonID, ListID)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT DO NOTHING
+                    `,
                     [
                         id,
                         mention.type === 'media' ? mention.id : null,
@@ -2251,37 +2125,24 @@ app.put('/comments/:id', async (req, res) => {
             }
         }
 
-        res.json({
+        return res.json({
             success: true,
             data: result.rows[0]
         });
-
     } catch (error) {
         console.error('Error updating comment:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to update comment'
         });
     }
 });
 
-// DELETE a comment (only author can delete)
-app.delete('/comments/:id', async (req, res) => {
+app.delete('/comments/:id', requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
-        const { userId } = req.body;
 
-        if (!userId) {
-            return res.status(400).json({
-                success: false,
-                error: 'userId is required to verify authorship'
-            });
-        }
-
-        const commentCheck = await pool.query(
-            'SELECT UserID FROM Comments WHERE CommentID = $1',
-            [id]
-        );
+        const commentCheck = await pool.query('SELECT UserID FROM Comments WHERE CommentID = $1', [id]);
 
         if (commentCheck.rows.length === 0) {
             return res.status(404).json({
@@ -2290,7 +2151,7 @@ app.delete('/comments/:id', async (req, res) => {
             });
         }
 
-        if (commentCheck.rows[0].userid !== parseInt(userId)) {
+        if (Number(commentCheck.rows[0].userid) !== Number(req.user.userId)) {
             return res.status(403).json({
                 success: false,
                 error: 'You can only delete your own comments'
@@ -2299,30 +2160,30 @@ app.delete('/comments/:id', async (req, res) => {
 
         await pool.query('DELETE FROM Comments WHERE CommentID = $1', [id]);
 
-        res.json({
+        return res.json({
             success: true,
             message: 'Comment deleted successfully'
         });
-
     } catch (error) {
         console.error('Error deleting comment:', error);
-        res.status(500).json({
+        return res.status(500).json({
             success: false,
             error: 'Failed to delete comment'
         });
     }
 });
 
-// POST upvote a comment
-app.post('/comments/:id/upvote', async (req, res) => {
+app.post('/comments/:id/upvote', requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
 
         const result = await pool.query(
-            `UPDATE Comments 
-             SET UpvoteCount = UpvoteCount + 1
-             WHERE CommentID = $1
-             RETURNING CommentID, UpvoteCount, DownvoteCount`,
+            `
+            UPDATE Comments
+            SET UpvoteCount = UpvoteCount + 1
+            WHERE CommentID = $1
+            RETURNING CommentID, UpvoteCount, DownvoteCount
+            `,
             [id]
         );
 
@@ -2333,23 +2194,27 @@ app.post('/comments/:id/upvote', async (req, res) => {
             });
         }
 
-        res.json({ success: true, data: result.rows[0] });
+        return res.json({ success: true, data: result.rows[0] });
     } catch (error) {
         console.error('Error upvoting comment:', error);
-        res.status(500).json({ success: false, error: 'Failed to upvote comment' });
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to upvote comment'
+        });
     }
 });
 
-// POST downvote a comment
-app.post('/comments/:id/downvote', async (req, res) => {
+app.post('/comments/:id/downvote', requireAuth, async (req, res) => {
     try {
         const { id } = req.params;
 
         const result = await pool.query(
-            `UPDATE Comments 
-             SET DownvoteCount = DownvoteCount + 1
-             WHERE CommentID = $1
-             RETURNING CommentID, UpvoteCount, DownvoteCount`,
+            `
+            UPDATE Comments
+            SET DownvoteCount = DownvoteCount + 1
+            WHERE CommentID = $1
+            RETURNING CommentID, UpvoteCount, DownvoteCount
+            `,
             [id]
         );
 
@@ -2360,10 +2225,13 @@ app.post('/comments/:id/downvote', async (req, res) => {
             });
         }
 
-        res.json({ success: true, data: result.rows[0] });
+        return res.json({ success: true, data: result.rows[0] });
     } catch (error) {
         console.error('Error downvoting comment:', error);
-        res.status(500).json({ success: false, error: 'Failed to downvote comment' });
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to downvote comment'
+        });
     }
 });
 

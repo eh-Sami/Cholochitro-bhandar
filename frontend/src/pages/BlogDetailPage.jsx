@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ThumbsUp, ThumbsDown, MessageSquare, ArrowLeft, User, Link as LinkIcon, Trash2, MoreVertical, Edit2 } from 'lucide-react';
+import { ThumbsUp, ThumbsDown, MessageSquare, ArrowLeft, Link as LinkIcon, Trash2, MoreVertical, Edit2 } from 'lucide-react';
 import MentionModal from '../components/MentionModal';
 import '../Blogs.css';
+import { getAuthToken, getStoredAuth } from '../utils/auth';
 
-const CommentNode = ({ comment, currentUser, handleEntityVote, renderContentWithMentions, blogId, fetchBlogAndComments }) => {
+const CommentNode = ({ comment, currentUser, token, handleEntityVote, renderContentWithMentions, blogId, fetchBlogAndComments }) => {
   const [isReplying, setIsReplying] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [replyMentions, setReplyMentions] = useState([]);
@@ -22,14 +23,21 @@ const CommentNode = ({ comment, currentUser, handleEntityVote, renderContentWith
   const editInputRef = React.useRef(null);
 
   const handleReply = async () => {
+    if (!currentUser || !token) {
+      alert('Please login to reply.');
+      return;
+    }
+
     if (!replyText.trim()) return;
     setIsReplyingSubmitting(true);
     try {
       const response = await fetch(`http://localhost:3000/blogs/${blogId}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({
-          userId: currentUser.userId,
           replyToCommentId: comment.commentid,
           commentText: replyText,
           mentions: replyMentions
@@ -50,14 +58,21 @@ const CommentNode = ({ comment, currentUser, handleEntityVote, renderContentWith
   };
 
   const handleEditSubmit = async () => {
+    if (!currentUser || !token) {
+      alert('Please login to edit a comment.');
+      return;
+    }
+
     if (!editText.trim()) return;
     setIsEditSubmitting(true);
     try {
       const response = await fetch(`http://localhost:3000/comments/${comment.commentid}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({
-          userId: currentUser.userId,
           commentText: editText,
           mentions: editMentions
         })
@@ -78,12 +93,19 @@ const CommentNode = ({ comment, currentUser, handleEntityVote, renderContentWith
   };
 
   const handleDeleteComment = async () => {
+    if (!currentUser || !token) {
+      alert('Please login to delete a comment.');
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this comment?")) return;
     try {
       const response = await fetch(`http://localhost:3000/comments/${comment.commentid}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.userId })
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
       });
       const json = await response.json();
       if (json.success) {
@@ -236,6 +258,7 @@ const CommentNode = ({ comment, currentUser, handleEntityVote, renderContentWith
               key={child.commentid} 
               comment={child} 
               currentUser={currentUser}
+              token={token}
               handleEntityVote={handleEntityVote}
               renderContentWithMentions={renderContentWithMentions}
               blogId={blogId}
@@ -255,10 +278,8 @@ export default function BlogDetailPage() {
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showBlogMenu, setShowBlogMenu] = useState(false);
-  
-  // Fake login user (same as BlogsPage)
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const currentUser = isLoggedIn ? { userId: 1, name: "Test User" } : null;
+  const { user: currentUser } = getStoredAuth();
+  const token = getAuthToken();
 
   // Step 6: Comment Posting State
   const [newComment, setNewComment] = useState('');
@@ -267,11 +288,7 @@ export default function BlogDetailPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const commentInputRef = React.useRef(null);
 
-  useEffect(() => {
-    fetchBlogAndComments();
-  }, [id]);
-
-  const fetchBlogAndComments = async () => {
+  const fetchBlogAndComments = useCallback(async () => {
     setLoading(true);
     try {
       const [blogRes, commentsRes] = await Promise.all([
@@ -290,10 +307,14 @@ export default function BlogDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchBlogAndComments();
+  }, [fetchBlogAndComments]);
 
   const handleEntityVote = async (entityId, type, isComment = false) => {
-    if (!currentUser) {
+    if (!currentUser || !token) {
       alert("You must be logged in to vote!");
       return;
     }
@@ -304,7 +325,12 @@ export default function BlogDetailPage() {
       : `http://localhost:3000/blogs/${entityId}/${type}`;
 
     try {
-      const response = await fetch(endpoint, { method: 'POST' });
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       const json = await response.json();
       
       if (json.success) {
@@ -330,12 +356,19 @@ export default function BlogDetailPage() {
   };
 
   const handleDeleteBlog = async () => {
+    if (!currentUser || !token) {
+      alert('Please login to delete a blog post.');
+      return;
+    }
+
     if (!window.confirm("Are you sure you want to delete this full blog post?")) return;
     try {
       const response = await fetch(`http://localhost:3000/blogs/${id}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser.userId })
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        }
       });
       const json = await response.json();
       if (json.success) {
@@ -369,16 +402,18 @@ export default function BlogDetailPage() {
   };
 
   const handlePostComment = async () => {
-    if (!currentUser) return alert("You must be logged in to comment.");
+    if (!currentUser || !token) return alert("You must be logged in to comment.");
     if (!newComment.trim()) return;
 
     setIsSubmitting(true);
     try {
       const response = await fetch(`http://localhost:3000/blogs/${id}/comments`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({
-          userId: currentUser.userId,
           replyToCommentId: null, // Top-level comment for now
           commentText: newComment,
           mentions: commentMentions
@@ -452,15 +487,6 @@ export default function BlogDetailPage() {
   return (
     <div className="page blogs-page" style={{ maxWidth: '800px', margin: '2rem auto' }}>
       
-      {/* Dev Tool: Fake Login Toggle */}
-      <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #f59e0b' }}>
-        <strong>🛠️ Dev Tool:</strong>
-        <span>Status: <b>{currentUser ? `Logged in as ${currentUser.name}` : "Guest view"}</b></span>
-        <button className="btn btn-secondary" onClick={() => setIsLoggedIn(!isLoggedIn)}>
-          <User size={16} /> Toggle Login
-        </button>
-      </div>
-
       <button className="btn btn-ghost" onClick={() => navigate('/blogs')} style={{ marginBottom: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
         <ArrowLeft size={16} /> Back to Blogs
       </button>
@@ -589,6 +615,7 @@ export default function BlogDetailPage() {
                 key={root.commentid} 
                 comment={root} 
                 currentUser={currentUser}
+                token={token}
                 handleEntityVote={handleEntityVote}
                 renderContentWithMentions={renderContentWithMentions}
                 blogId={id}
