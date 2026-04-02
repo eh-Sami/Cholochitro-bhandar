@@ -140,16 +140,11 @@ function MovieDetailsPage() {
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">⭐</span>
-                                        <span className="detail-fact-label">Global Rating</span>
-                                        <strong className="detail-fact-value">{movie.rating ? `⭐ ${movie.rating}` : 'N/A'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">🧑</span>
-                                        <span className="detail-fact-label">Website Rating</span>
+                                        <span className="detail-fact-label">Rating</span>
                                         <strong className="detail-fact-value">
-                                            {movie.websiteRating ? `⭐ ${movie.websiteRating}` : 'N/A'}
+                                            {movie.rating ? `⭐ ${movie.rating}` : 'N/A'}
                                         </strong>
-                                        <small>{movie.reviewCount || 0} reviews</small>
+                                        <small>{movie.ratingcount || 0} ratings</small>
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">🏆</span>

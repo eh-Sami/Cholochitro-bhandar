@@ -94,9 +94,6 @@ function TVShowSeasonsPage() {
     const globalSeasonRating = selectedSeason?.avgrating !== null && selectedSeason?.avgrating !== undefined
         ? Number(selectedSeason.avgrating).toFixed(1)
         : 'N/A'
-    const websiteSeasonRating = selectedSeason?.websiteSeasonRating !== null && selectedSeason?.websiteSeasonRating !== undefined
-        ? Number(selectedSeason.websiteSeasonRating).toFixed(1)
-        : 'N/A'
 
     return (
         <main className="page">
@@ -158,8 +155,7 @@ function TVShowSeasonsPage() {
                                                 {avgDuration > 0 && (
                                                     <span className="season-duration">~{avgDuration} min/ep</span>
                                                 )}
-                                                <span className="season-rating">Global ⭐ {globalSeasonRating}</span>
-                                                <span className="season-rating">Website ⭐ {websiteSeasonRating}</span>
+                                                <span className="season-rating">Rating ⭐ {globalSeasonRating}</span>
                                             </div>
                                         </div>
 

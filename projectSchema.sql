@@ -47,6 +47,7 @@ CREATE TABLE Media (
     Description TEXT,
     LanguageName VARCHAR(100),
     Rating DECIMAL(3, 1),
+    RatingCount INT NOT NULL DEFAULT 1000,
     MediaType media_type_enum NOT NULL,
     Poster VARCHAR(512)
 );
@@ -88,6 +89,7 @@ CREATE TABLE Episode (
     Description TEXT,
     Duration INT CHECK (Duration > 0),
     AvgRating DECIMAL(3, 1),
+    RatingCount INT NOT NULL DEFAULT 1000,
     StillPath VARCHAR(512),
     PRIMARY KEY (MediaID, SeasonNo, EpisodeNo),
     FOREIGN KEY (MediaID, SeasonNo) REFERENCES Season(MediaID, SeasonNo) ON DELETE CASCADE

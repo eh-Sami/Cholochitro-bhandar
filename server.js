@@ -71,6 +71,65 @@ const pool = new Pool({
     } : false
 });
 
+const refreshTvSeriesRatings = async (client, mediaId, seasonNo) => {
+    const seasonAggregate = await client.query(
+        `
+        SELECT
+            ROUND(AVG(AvgRating)::numeric, 1) AS season_rating
+        FROM Episode
+        WHERE MediaID = $1 AND SeasonNo = $2
+        `,
+        [mediaId, seasonNo]
+    );
+
+    await client.query(
+        `
+        UPDATE Season
+        SET AvgRating = $1
+        WHERE MediaID = $2 AND SeasonNo = $3
+        `,
+        [seasonAggregate.rows[0]?.season_rating ?? null, mediaId, seasonNo]
+    );
+
+    const [seriesAggregate, seriesCount] = await Promise.all([
+        client.query(
+            `
+            WITH season_scores AS (
+                SELECT SeasonNo, AVG(AvgRating) AS season_avg
+                FROM Episode
+                WHERE MediaID = $1
+                GROUP BY SeasonNo
+            )
+            SELECT ROUND(AVG(season_avg)::numeric, 1) AS series_rating
+            FROM season_scores
+            `,
+            [mediaId]
+        ),
+        client.query(
+            `
+            SELECT COALESCE(SUM(RatingCount), 0)::int AS series_rating_count
+            FROM Episode
+            WHERE MediaID = $1
+            `,
+            [mediaId]
+        )
+    ]);
+
+    await client.query(
+        `
+        UPDATE Media
+        SET Rating = $1,
+            RatingCount = $2
+        WHERE MediaID = $3 AND MediaType = 'TVSeries'
+        `,
+        [
+            seriesAggregate.rows[0]?.series_rating ?? null,
+            seriesCount.rows[0]?.series_rating_count || 0,
+            mediaId
+        ]
+    );
+};
+
 // Test connection on startup
 pool.connect((err, client, release) => {
     if (err) {
@@ -217,14 +276,14 @@ app.post('/auth/login', async (req, res) => {
     }
 });
 
-// GET media reviews with website rating aggregate
+// GET media reviews with stored rating + review list
 app.get('/reviews/media/:mediaId', async (req, res) => {
     try {
         const { mediaId } = req.params;
 
-        const mediaTypeResult = await pool.query(
+        const mediaResult = await pool.query(
             `
-            SELECT MediaType
+            SELECT MediaType, Rating, RatingCount
             FROM Media
             WHERE MediaID = $1
             LIMIT 1
@@ -232,59 +291,46 @@ app.get('/reviews/media/:mediaId', async (req, res) => {
             [mediaId]
         );
 
-        if (mediaTypeResult.rows.length === 0) {
+        if (mediaResult.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Media not found'
             });
         }
 
-        if (mediaTypeResult.rows[0].mediatype !== 'Movie') {
+        if (mediaResult.rows[0].mediatype !== 'Movie') {
             return res.status(400).json({
                 success: false,
                 error: 'TV series reviews are episode-based. Use episode review endpoints.'
             });
         }
 
-        const [aggregateResult, reviewsResult] = await Promise.all([
-            pool.query(
-                `
-                SELECT
-                    ROUND(AVG(Rating)::numeric, 1) as website_rating,
-                    COUNT(*)::int as review_count
-                FROM Review
-                WHERE MediaID = $1
-                `,
-                [mediaId]
-            ),
-            pool.query(
-                `
-                SELECT
-                    r.ReviewID,
-                    r.ReviewText,
-                    r.Rating,
-                    r.PostDate,
-                    r.SpoilerFlag,
-                    r.EditedAt,
-                    u.UserID,
-                    u.FullName
-                FROM Review r
-                JOIN Users u ON r.UserID = u.UserID
-                WHERE r.MediaID = $1
-                ORDER BY r.PostDate DESC
-                LIMIT 50
-                `,
-                [mediaId]
-            )
-        ]);
-
-        const aggregate = aggregateResult.rows[0] || {};
+        const reviewsResult = await pool.query(
+            `
+            SELECT
+                r.ReviewID,
+                r.ReviewText,
+                r.Rating,
+                r.PostDate,
+                r.SpoilerFlag,
+                r.EditedAt,
+                u.UserID,
+                u.FullName
+            FROM Review r
+            JOIN Users u ON r.UserID = u.UserID
+            WHERE r.MediaID = $1
+            ORDER BY r.PostDate DESC
+            LIMIT 50
+            `,
+            [mediaId]
+        );
 
         return res.json({
             success: true,
             data: {
-                websiteRating: aggregate.website_rating,
-                reviewCount: aggregate.review_count || 0,
+                rating: mediaResult.rows[0].rating,
+                ratingCount: mediaResult.rows[0].ratingcount || 0,
+                reviewCount: reviewsResult.rows.length,
                 reviews: reviewsResult.rows
             }
         });
@@ -316,7 +362,7 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
 
         const mediaTypeResult = await client.query(
             `
-            SELECT MediaType
+            SELECT Rating, RatingCount, MediaType
             FROM Media
             WHERE MediaID = $1
             LIMIT 1
@@ -346,9 +392,19 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
             [`review:${req.user.userId}:${mediaId}`]
         );
 
+        const mediaRow = await client.query(
+            `
+            SELECT Rating, RatingCount
+            FROM Media
+            WHERE MediaID = $1
+            FOR UPDATE
+            `,
+            [mediaId]
+        );
+
         const existingReview = await client.query(
             `
-            SELECT ReviewID
+            SELECT ReviewID, Rating
             FROM Review
             WHERE UserID = $1 AND MediaID = $2
             LIMIT 1
@@ -356,7 +412,15 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
             [req.user.userId, mediaId]
         );
 
+        const currentRating = Number(mediaRow.rows[0].rating) || 0;
+        const currentCount = Number(mediaRow.rows[0].ratingcount) || 0;
+
         if (existingReview.rows.length > 0) {
+            const previousRating = Number(existingReview.rows[0].rating) || 0;
+            const nextRating = currentCount > 0
+                ? ((currentRating * currentCount) - previousRating + numericRating) / currentCount
+                : numericRating;
+
             const updated = await client.query(
                 `
                 UPDATE Review
@@ -373,6 +437,16 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
                     Boolean(spoilerFlag),
                     existingReview.rows[0].reviewid
                 ]
+            );
+
+            await client.query(
+                `
+                UPDATE Media
+                SET Rating = $1,
+                    RatingCount = $2
+                WHERE MediaID = $3
+                `,
+                [Number(nextRating.toFixed(1)), currentCount, mediaId]
             );
 
             await client.query('COMMIT');
@@ -398,6 +472,21 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
                 numericRating,
                 Boolean(spoilerFlag)
             ]
+        );
+
+        const nextCount = currentCount + 1;
+        const nextRating = nextCount > 0
+            ? ((currentRating * currentCount) + numericRating) / nextCount
+            : numericRating;
+
+        await client.query(
+            `
+            UPDATE Media
+            SET Rating = $1,
+                RatingCount = $2
+            WHERE MediaID = $3
+            `,
+            [Number(nextRating.toFixed(1)), nextCount, mediaId]
         );
 
         await client.query('COMMIT');
@@ -427,11 +516,19 @@ app.get('/reviews/episode/:mediaId/:seasonNo/:episodeNo', async (req, res) => {
     try {
         const { mediaId, seasonNo, episodeNo } = req.params;
 
-        const [aggregateResult, reviewsResult] = await Promise.all([
+        const [episodeBaseResult, reviewCountResult, reviewsResult] = await Promise.all([
+            pool.query(
+                `
+                SELECT AvgRating, RatingCount
+                FROM Episode
+                WHERE MediaID = $1 AND SeasonNo = $2 AND EpisodeNo = $3
+                LIMIT 1
+                `,
+                [mediaId, seasonNo, episodeNo]
+            ),
             pool.query(
                 `
                 SELECT
-                    ROUND(AVG(Rating)::numeric, 1) as website_rating,
                     COUNT(*)::int as review_count
                 FROM Review
                 WHERE EpisodeMediaID = $1 AND EpisodeSeasonNo = $2 AND EpisodeNo = $3
@@ -459,13 +556,22 @@ app.get('/reviews/episode/:mediaId/:seasonNo/:episodeNo', async (req, res) => {
             )
         ]);
 
-        const aggregate = aggregateResult.rows[0] || {};
+        if (episodeBaseResult.rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                error: 'Episode not found'
+            });
+        }
+
+        const episodeRow = episodeBaseResult.rows[0];
+        const reviewCount = reviewCountResult.rows[0]?.review_count || 0;
 
         return res.json({
             success: true,
             data: {
-                websiteRating: aggregate.website_rating,
-                reviewCount: aggregate.review_count || 0,
+                rating: episodeRow.avgrating,
+                ratingCount: episodeRow.ratingcount || 0,
+                reviewCount,
                 reviews: reviewsResult.rows
             }
         });
@@ -503,9 +609,31 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
             [`review_ep:${req.user.userId}:${mediaId}:${seasonNo}:${episodeNo}`]
         );
 
+        const episodeResult = await client.query(
+            `
+            SELECT AvgRating, RatingCount
+            FROM Episode
+            WHERE MediaID = $1 AND SeasonNo = $2 AND EpisodeNo = $3
+            FOR UPDATE
+            `,
+            [mediaId, seasonNo, episodeNo]
+        );
+
+        if (episodeResult.rows.length === 0) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
+            return res.status(404).json({
+                success: false,
+                error: 'Episode not found'
+            });
+        }
+
+        const currentEpisodeRating = Number(episodeResult.rows[0].avgrating) || 0;
+        const currentEpisodeCount = Number(episodeResult.rows[0].ratingcount) || 0;
+
         const existingReview = await client.query(
             `
-            SELECT ReviewID
+            SELECT ReviewID, Rating
             FROM Review
             WHERE UserID = $1
               AND EpisodeMediaID = $2
@@ -517,6 +645,11 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
         );
 
         if (existingReview.rows.length > 0) {
+            const previousRating = Number(existingReview.rows[0].rating) || 0;
+            const nextEpisodeRating = currentEpisodeCount > 0
+                ? ((currentEpisodeRating * currentEpisodeCount) - previousRating + numericRating) / currentEpisodeCount
+                : numericRating;
+
             const updated = await client.query(
                 `
                 UPDATE Review
@@ -534,6 +667,24 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
                     existingReview.rows[0].reviewid
                 ]
             );
+
+            await client.query(
+                `
+                UPDATE Episode
+                SET AvgRating = $1,
+                    RatingCount = $2
+                WHERE MediaID = $3 AND SeasonNo = $4 AND EpisodeNo = $5
+                `,
+                [
+                    Number(nextEpisodeRating.toFixed(1)),
+                    currentEpisodeCount,
+                    mediaId,
+                    seasonNo,
+                    episodeNo
+                ]
+            );
+
+            await refreshTvSeriesRatings(client, mediaId, seasonNo);
 
             await client.query('COMMIT');
             transactionStarted = false;
@@ -570,6 +721,29 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
                 Boolean(spoilerFlag)
             ]
         );
+
+        const nextEpisodeCount = currentEpisodeCount + 1;
+        const nextEpisodeRating = nextEpisodeCount > 0
+            ? ((currentEpisodeRating * currentEpisodeCount) + numericRating) / nextEpisodeCount
+            : numericRating;
+
+        await client.query(
+            `
+            UPDATE Episode
+            SET AvgRating = $1,
+                RatingCount = $2
+            WHERE MediaID = $3 AND SeasonNo = $4 AND EpisodeNo = $5
+            `,
+            [
+                Number(nextEpisodeRating.toFixed(1)),
+                nextEpisodeCount,
+                mediaId,
+                seasonNo,
+                episodeNo
+            ]
+        );
+
+        await refreshTvSeriesRatings(client, mediaId, seasonNo);
 
         await client.query('COMMIT');
         transactionStarted = false;
@@ -710,6 +884,7 @@ app.get('/movies/:id', async (req, res) => {
                 m.ReleaseYear,
                 m.Description,
                 m.Rating,
+                m.RatingCount,
                 m.Poster,
                 m.LanguageName,
                 mv.Duration,
@@ -1004,6 +1179,7 @@ app.get('/tvshows/:id/seasons', async (req, res) => {
                 m.ReleaseYear,
                 m.Description,
                 m.Rating,
+                m.RatingCount,
                 m.Poster,
                 m.LanguageName,
                 tv.IsOngoing,
@@ -1041,39 +1217,39 @@ app.get('/tvshows/:id/seasons', async (req, res) => {
             ORDER BY SeasonNo, EpisodeNo
         `;
 
-        const seasonWebsiteRatingQuery = `
+        const seasonAggregateQuery = `
             SELECT
-                EpisodeSeasonNo as seasonno,
-                ROUND(AVG(Rating)::numeric, 1) as website_season_rating,
-                COUNT(*)::int as season_review_count
-            FROM Review
-            WHERE EpisodeMediaID = $1
-            GROUP BY EpisodeSeasonNo
+                SeasonNo as seasonno,
+                ROUND(AVG(AvgRating)::numeric, 1) as season_rating,
+                COALESCE(SUM(RatingCount), 0)::int as season_rating_count
+            FROM Episode
+            WHERE MediaID = $1
+            GROUP BY SeasonNo
         `;
 
-        const showWebsiteRatingQuery = `
+        const showAggregateQuery = `
             WITH season_scores AS (
-                SELECT EpisodeSeasonNo, AVG(Rating) as season_avg
-                FROM Review
-                WHERE EpisodeMediaID = $1
-                GROUP BY EpisodeSeasonNo
+                SELECT SeasonNo, AVG(AvgRating) as season_avg
+                FROM Episode
+                WHERE MediaID = $1
+                GROUP BY SeasonNo
             )
             SELECT
-                ROUND(AVG(season_avg)::numeric, 1) as website_rating,
+                ROUND(AVG(season_avg)::numeric, 1) as series_rating,
                 (
-                    SELECT COUNT(*)::int
-                    FROM Review
-                    WHERE EpisodeMediaID = $1
-                ) as review_count
+                    SELECT COALESCE(SUM(RatingCount), 0)::int
+                    FROM Episode
+                    WHERE MediaID = $1
+                ) as series_rating_count
             FROM season_scores
         `;
 
-        const [tvResult, seasonsResult, episodesResult, seasonWebsiteResult, showWebsiteResult] = await Promise.all([
+        const [tvResult, seasonsResult, episodesResult, seasonAggregateResult, showAggregateResult] = await Promise.all([
             pool.query(tvQuery, [id]),
             pool.query(seasonsQuery, [id]),
             pool.query(episodesQuery, [id]),
-            pool.query(seasonWebsiteRatingQuery, [id]),
-            pool.query(showWebsiteRatingQuery, [id])
+            pool.query(seasonAggregateQuery, [id]),
+            pool.query(showAggregateQuery, [id])
         ]);
 
         if (tvResult.rows.length === 0) {
@@ -1084,20 +1260,22 @@ app.get('/tvshows/:id/seasons', async (req, res) => {
         }
 
         const tvShow = tvResult.rows[0];
-        const seasonWebsiteMap = new Map(
-            seasonWebsiteResult.rows.map((row) => [
+        const seasonAggregateMap = new Map(
+            seasonAggregateResult.rows.map((row) => [
                 Number(row.seasonno),
                 {
-                    websiteSeasonRating: row.website_season_rating,
-                    seasonReviewCount: row.season_review_count || 0
+                    websiteSeasonRating: row.season_rating,
+                    seasonReviewCount: row.season_rating_count || 0
                 }
             ])
         );
-        tvShow.websiteRating = showWebsiteResult.rows[0]?.website_rating || null;
-        tvShow.reviewCount = showWebsiteResult.rows[0]?.review_count || 0;
+        tvShow.rating = showAggregateResult.rows[0]?.series_rating || tvShow.rating;
+        tvShow.ratingcount = showAggregateResult.rows[0]?.series_rating_count || tvShow.ratingcount || 0;
+        tvShow.websiteRating = tvShow.rating;
+        tvShow.reviewCount = tvShow.ratingcount;
         tvShow.seasons = seasonsResult.rows.map((season) => ({
             ...season,
-            ...seasonWebsiteMap.get(Number(season.seasonno)),
+            ...seasonAggregateMap.get(Number(season.seasonno)),
             episodes: episodesResult.rows.filter((ep) => ep.seasonno === season.seasonno)
         }));
 
@@ -1127,6 +1305,7 @@ app.get('/tvshows/:id', async (req, res) => {
                 m.ReleaseYear,
                 m.Description,
                 m.Rating,
+                m.RatingCount,
                 m.Poster,
                 m.LanguageName,
                 tv.IsOngoing,
@@ -1177,30 +1356,30 @@ app.get('/tvshows/:id', async (req, res) => {
             WHERE p.MediaID = $1
         `;
 
-        const seasonWebsiteRatingQuery = `
+        const seasonAggregateQuery = `
             SELECT
-                EpisodeSeasonNo as seasonno,
-                ROUND(AVG(Rating)::numeric, 1) as website_season_rating,
-                COUNT(*)::int as season_review_count
-            FROM Review
-            WHERE EpisodeMediaID = $1
-            GROUP BY EpisodeSeasonNo
+                SeasonNo as seasonno,
+                ROUND(AVG(AvgRating)::numeric, 1) as season_rating,
+                COALESCE(SUM(RatingCount), 0)::int as season_rating_count
+            FROM Episode
+            WHERE MediaID = $1
+            GROUP BY SeasonNo
         `;
 
-        const showWebsiteRatingQuery = `
+        const showAggregateQuery = `
             WITH season_scores AS (
-                SELECT EpisodeSeasonNo, AVG(Rating) as season_avg
-                FROM Review
-                WHERE EpisodeMediaID = $1
-                GROUP BY EpisodeSeasonNo
+                SELECT SeasonNo, AVG(AvgRating) as season_avg
+                FROM Episode
+                WHERE MediaID = $1
+                GROUP BY SeasonNo
             )
             SELECT
-                ROUND(AVG(season_avg)::numeric, 1) as website_rating,
+                ROUND(AVG(season_avg)::numeric, 1) as series_rating,
                 (
-                    SELECT COUNT(*)::int
-                    FROM Review
-                    WHERE EpisodeMediaID = $1
-                ) as review_count
+                    SELECT COALESCE(SUM(RatingCount), 0)::int
+                    FROM Episode
+                    WHERE MediaID = $1
+                ) as series_rating_count
             FROM season_scores
         `;
 
@@ -1233,7 +1412,7 @@ app.get('/tvshows/:id', async (req, res) => {
         `;
 
         // Execute all queries in parallel
-        const [tvResult, genreResult, castResult, crewResult, studioResult, seasonsResult, episodesResult, seasonWebsiteResult, showWebsiteResult] = 
+        const [tvResult, genreResult, castResult, crewResult, studioResult, seasonsResult, episodesResult, seasonAggregateResult, showAggregateResult] = 
             await Promise.all([
                 pool.query(tvQuery, [id]),
                 pool.query(genreQuery, [id]),
@@ -1242,8 +1421,8 @@ app.get('/tvshows/:id', async (req, res) => {
                 pool.query(studioQuery, [id]),
                 pool.query(seasonsQuery, [id]),
                 pool.query(episodesQuery, [id]),
-                pool.query(seasonWebsiteRatingQuery, [id]),
-                pool.query(showWebsiteRatingQuery, [id])
+                pool.query(seasonAggregateQuery, [id]),
+                pool.query(showAggregateQuery, [id])
             ]);
 
         // Check if TV show exists
@@ -1260,14 +1439,16 @@ app.get('/tvshows/:id', async (req, res) => {
         tvShow.cast = castResult.rows;
         tvShow.crew = crewResult.rows;
         tvShow.studios = studioResult.rows;
-        tvShow.websiteRating = showWebsiteResult.rows[0]?.website_rating || null;
-        tvShow.reviewCount = showWebsiteResult.rows[0]?.review_count || 0;
+        tvShow.rating = showAggregateResult.rows[0]?.series_rating || tvShow.rating;
+        tvShow.ratingcount = showAggregateResult.rows[0]?.series_rating_count || tvShow.ratingcount || 0;
+        tvShow.websiteRating = tvShow.rating;
+        tvShow.reviewCount = tvShow.ratingcount;
         const seasonWebsiteMap = new Map(
-            seasonWebsiteResult.rows.map((row) => [
+            seasonAggregateResult.rows.map((row) => [
                 Number(row.seasonno),
                 {
-                    websiteSeasonRating: row.website_season_rating,
-                    seasonReviewCount: row.season_review_count || 0
+                    websiteSeasonRating: row.season_rating,
+                    seasonReviewCount: row.season_rating_count || 0
                 }
             ])
         );

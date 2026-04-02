@@ -160,16 +160,11 @@ function TVShowDetailsPage() {
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">⭐</span>
-                                        <span className="detail-fact-label">Global Rating</span>
-                                        <strong className="detail-fact-value">{show.rating ? `⭐ ${show.rating}` : 'N/A'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">🧑</span>
-                                        <span className="detail-fact-label">Website Rating</span>
+                                        <span className="detail-fact-label">Rating</span>
                                         <strong className="detail-fact-value">
-                                            {show.websiteRating ? `⭐ ${show.websiteRating}` : 'N/A'}
+                                            {show.rating ? `⭐ ${show.rating}` : 'N/A'}
                                         </strong>
-                                        <small>{show.reviewCount || 0} episode reviews</small>
+                                        <small>{show.ratingcount || 0} ratings</small>
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">🏆</span>
@@ -187,8 +182,8 @@ function TVShowDetailsPage() {
                             </div>
 
                             <div className="detail-section">
-                                <h3>Website Reviews</h3>
-                                <p className="status">For TV series, users rate and review episodes. Season and website ratings are derived from episode reviews.</p>
+                                <h3>Episode Reviews</h3>
+                                <p className="status">For TV series, users rate and review episodes. Season ratings are shown separately.</p>
                                 <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
                                     Go To Episode Reviews
                                 </Link>
