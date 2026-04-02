@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Link as LinkIcon } from 'lucide-react';
 import '../Blogs.css';
 import MentionModal from '../components/MentionModal';
+import { getAuthToken, getStoredAuth } from '../utils/auth';
 
 export default function CreateBlogPage() {
   const navigate = useNavigate();
@@ -11,8 +12,8 @@ export default function CreateBlogPage() {
   const [mentions, setMentions] = useState([]); // [{ type: 'media', id: 123, name: 'Inception' }]
   const textareaRef = useRef(null);
   
-  // Fake login user (same as BlogsPage)
-  const currentUser = { userId: 1, name: "Test User" }; 
+  const { user: currentUser } = getStoredAuth();
+  const token = getAuthToken();
 
   const [showMentionModal, setShowMentionModal] = useState(false);
 
@@ -75,6 +76,11 @@ export default function CreateBlogPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!currentUser || !token) {
+      alert('Please login to publish a blog post.');
+      return;
+    }
     
     if (!title.trim() || !content.trim()) {
       alert("Please provide both a title and content.");
@@ -84,9 +90,11 @@ export default function CreateBlogPage() {
     try {
       const response = await fetch('http://localhost:3000/blogs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify({
-          userId: currentUser.userId,
           blogTitle: title,
           content: content,
           mentions: mentions
