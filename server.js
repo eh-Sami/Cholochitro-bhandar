@@ -48,6 +48,22 @@ const requireAuth = (req, res, next) => {
     }
 };
 
+const getOptionalUserIdFromRequest = (req) => {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+    if (!token) {
+        return null;
+    }
+
+    try {
+        const payload = jwt.verify(token, JWT_SECRET);
+        return payload.userId;
+    } catch {
+        return null;
+    }
+};
+
 
 
 // Enable CORS 
@@ -1626,6 +1642,8 @@ app.get('/search', async (req, res) => {
     try {
         // Get search query from URL
         const query = req.query.q;
+        const titleOnly = req.query.titleOnly === 'true' || req.query.titleOnly === '1';
+        const exactTitle = req.query.exactTitle === 'true' || req.query.exactTitle === '1';
 
         // Validate search query exists
         if (!query || query.trim().length === 0) {
@@ -1643,39 +1661,102 @@ app.get('/search', async (req, res) => {
         // Search in title and description
         // ILIKE = case-insensitive search in PostgreSQL
         // %query% = matches anywhere in the text
-        const searchQuery = `
-            SELECT 
-                MediaID,
-                Title,
-                ReleaseYear,
-                Description,
-                Rating,
-                Poster,
-                MediaType,
-                CASE 
-                    WHEN Title ILIKE $1 THEN 3          -- Exact match = highest priority
-                    WHEN Title ILIKE $2 THEN 2          -- Contains query = medium
-                    WHEN Description ILIKE $2 THEN 1    -- In description = lowest
-                    ELSE 0
-                END as relevance
-            FROM Media
-            WHERE Title ILIKE $2 OR Description ILIKE $2
-            ORDER BY relevance DESC, Rating DESC NULLS LAST
-            LIMIT $3 OFFSET $4
-        `;
-
-        // Count total results
-        const countQuery = `
-            SELECT COUNT(*) as total
-            FROM Media
-            WHERE Title ILIKE $1 OR Description ILIKE $1
-        `;
-
         const searchPattern = `%${query}%`;  // Add wildcards for partial matching
+        const exactWords = query.trim().split(/\s+/).filter(Boolean);
+
+        let searchQuery;
+        let countQuery;
+        let searchParams;
+
+        if (exactTitle) {
+            const wordConditions = exactWords.map((word, index) => `Title ~* $${index + 1}`);
+            const regexPatterns = exactWords.map((word) => `(^|\\W)${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`);
+
+            searchQuery = `
+                SELECT
+                    MediaID,
+                    Title,
+                    ReleaseYear,
+                    Description,
+                    Rating,
+                    Poster,
+                    MediaType,
+                    3 as relevance
+                FROM Media
+                WHERE ${wordConditions.join(' AND ')}
+                ORDER BY Rating DESC NULLS LAST, Title ASC
+                LIMIT $${exactWords.length + 1} OFFSET $${exactWords.length + 2}
+            `;
+
+            countQuery = `
+                SELECT COUNT(*) as total
+                FROM Media
+                WHERE ${wordConditions.join(' AND ')}
+            `;
+
+            searchParams = [...regexPatterns, limit, offset];
+        } else if (titleOnly) {
+            searchQuery = `
+                SELECT
+                    MediaID,
+                    Title,
+                    ReleaseYear,
+                    Description,
+                    Rating,
+                    Poster,
+                    MediaType,
+                    CASE
+                        WHEN Title ILIKE $1 THEN 3
+                        ELSE 0
+                    END as relevance
+                FROM Media
+                WHERE Title ILIKE $1
+                ORDER BY relevance DESC, Rating DESC NULLS LAST, Title ASC
+                LIMIT $2 OFFSET $3
+            `;
+
+            countQuery = `
+                SELECT COUNT(*) as total
+                FROM Media
+                WHERE Title ILIKE $1
+            `;
+
+            searchParams = [searchPattern, limit, offset];
+        } else {
+            searchQuery = `
+                SELECT 
+                    MediaID,
+                    Title,
+                    ReleaseYear,
+                    Description,
+                    Rating,
+                    Poster,
+                    MediaType,
+                    CASE 
+                        WHEN Title ILIKE $1 THEN 3          -- Exact match = highest priority
+                        WHEN Title ILIKE $2 THEN 2          -- Contains query = medium
+                        WHEN Description ILIKE $2 THEN 1    -- In description = lowest
+                        ELSE 0
+                    END as relevance
+                FROM Media
+                WHERE Title ILIKE $2 OR Description ILIKE $2
+                ORDER BY relevance DESC, Rating DESC NULLS LAST
+                LIMIT $3 OFFSET $4
+            `;
+
+            // Count total results
+            countQuery = `
+                SELECT COUNT(*) as total
+                FROM Media
+                WHERE Title ILIKE $1 OR Description ILIKE $1
+            `;
+
+            searchParams = [query, searchPattern, limit, offset];
+        }
         
         const [result, countResult] = await Promise.all([
-            pool.query(searchQuery, [query, searchPattern, limit, offset]),
-            pool.query(countQuery, [searchPattern])
+            pool.query(searchQuery, searchParams),
+            pool.query(countQuery, exactTitle ? searchParams.slice(0, -2) : titleOnly ? [searchPattern] : [searchPattern])
         ]);
 
         const total = parseInt(countResult.rows[0].total);
@@ -1738,6 +1819,344 @@ app.get('/lists/search', async (req, res) => {
     }
 });
 
+app.get('/lists', async (req, res) => {
+    try {
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+        let authUserId = null;
+
+        if (token) {
+            try {
+                const payload = jwt.verify(token, JWT_SECRET);
+                authUserId = payload.userId;
+            } catch {
+                authUserId = null;
+            }
+        }
+
+        const mine = req.query.mine === 'true';
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = parseInt(req.query.limit, 10) || 20;
+        const offset = (page - 1) * limit;
+
+        if (mine && !authUserId) {
+            return res.status(401).json({
+                success: false,
+                error: 'Authorization token is required for mine=true'
+            });
+        }
+
+        let dataQuery = '';
+        let countQuery = '';
+        let params = [];
+        let countParams = [];
+
+        if (mine && authUserId) {
+            dataQuery = `
+                SELECT
+                    ul.ListID,
+                    ul.ListName,
+                    ul.IsPublic,
+                    ul.CreatedAt,
+                    ul.UserID,
+                    u.FullName AS Creator,
+                    COUNT(li.MediaID)::int AS ItemCount
+                FROM User_List ul
+                JOIN Users u ON ul.UserID = u.UserID
+                LEFT JOIN List_Items li ON ul.ListID = li.ListID
+                WHERE ul.UserID = $1
+                GROUP BY ul.ListID, ul.ListName, ul.IsPublic, ul.CreatedAt, ul.UserID, u.FullName
+                ORDER BY ul.CreatedAt DESC
+                LIMIT $2 OFFSET $3
+            `;
+            countQuery = 'SELECT COUNT(*)::int AS total FROM User_List WHERE UserID = $1';
+            params = [authUserId, limit, offset];
+            countParams = [authUserId];
+        } else if (authUserId) {
+            dataQuery = `
+                SELECT
+                    ul.ListID,
+                    ul.ListName,
+                    ul.IsPublic,
+                    ul.CreatedAt,
+                    ul.UserID,
+                    u.FullName AS Creator,
+                    COUNT(li.MediaID)::int AS ItemCount
+                FROM User_List ul
+                JOIN Users u ON ul.UserID = u.UserID
+                LEFT JOIN List_Items li ON ul.ListID = li.ListID
+                WHERE ul.IsPublic = TRUE OR ul.UserID = $1
+                GROUP BY ul.ListID, ul.ListName, ul.IsPublic, ul.CreatedAt, ul.UserID, u.FullName
+                ORDER BY ul.CreatedAt DESC
+                LIMIT $2 OFFSET $3
+            `;
+            countQuery = 'SELECT COUNT(*)::int AS total FROM User_List WHERE IsPublic = TRUE OR UserID = $1';
+            params = [authUserId, limit, offset];
+            countParams = [authUserId];
+        } else {
+            dataQuery = `
+                SELECT
+                    ul.ListID,
+                    ul.ListName,
+                    ul.IsPublic,
+                    ul.CreatedAt,
+                    ul.UserID,
+                    u.FullName AS Creator,
+                    COUNT(li.MediaID)::int AS ItemCount
+                FROM User_List ul
+                JOIN Users u ON ul.UserID = u.UserID
+                LEFT JOIN List_Items li ON ul.ListID = li.ListID
+                WHERE ul.IsPublic = TRUE
+                GROUP BY ul.ListID, ul.ListName, ul.IsPublic, ul.CreatedAt, ul.UserID, u.FullName
+                ORDER BY ul.CreatedAt DESC
+                LIMIT $1 OFFSET $2
+            `;
+            countQuery = 'SELECT COUNT(*)::int AS total FROM User_List WHERE IsPublic = TRUE';
+            params = [limit, offset];
+            countParams = [];
+        }
+
+        const [result, countResult] = await Promise.all([
+            pool.query(dataQuery, params),
+            pool.query(countQuery, countParams)
+        ]);
+
+        const total = countResult.rows[0]?.total || 0;
+
+        return res.json({
+            success: true,
+            data: result.rows,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching lists:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Failed to fetch lists'
+        });
+    }
+});
+
+app.get('/lists/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const authHeader = req.headers.authorization || '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+        let authUserId = null;
+
+        if (token) {
+            try {
+                const payload = jwt.verify(token, JWT_SECRET);
+                authUserId = payload.userId;
+            } catch {
+                authUserId = null;
+            }
+        }
+
+        const listResult = await pool.query(
+            `
+            SELECT
+                ul.ListID,
+                ul.ListName,
+                ul.IsPublic,
+                ul.CreatedAt,
+                ul.UserID,
+                u.FullName AS Creator
+            FROM User_List ul
+            JOIN Users u ON ul.UserID = u.UserID
+            WHERE ul.ListID = $1
+            LIMIT 1
+            `,
+            [id]
+        );
+
+        if (listResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'List not found' });
+        }
+
+        const list = listResult.rows[0];
+
+        if (!list.ispublic && Number(list.userid) !== Number(authUserId)) {
+            return res.status(403).json({ success: false, error: 'This list is private' });
+        }
+
+        const itemsResult = await pool.query(
+            `
+            SELECT
+                m.MediaID,
+                m.Title,
+                m.MediaType,
+                m.ReleaseYear,
+                m.Rating,
+                m.Poster
+            FROM List_Items li
+            JOIN Media m ON li.MediaID = m.MediaID
+            WHERE li.ListID = $1
+            ORDER BY m.Title ASC
+            `,
+            [id]
+        );
+
+        return res.json({
+            success: true,
+            data: {
+                ...list,
+                itemCount: itemsResult.rows.length,
+                items: itemsResult.rows
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching list details:', error);
+        return res.status(500).json({ success: false, error: 'Failed to fetch list details' });
+    }
+});
+
+app.post('/lists', requireAuth, async (req, res) => {
+    try {
+        const { listName, isPublic } = req.body;
+
+        if (!listName || !listName.trim()) {
+            return res.status(400).json({ success: false, error: 'listName is required' });
+        }
+
+        const result = await pool.query(
+            `
+            INSERT INTO User_List (UserID, ListName, IsPublic)
+            VALUES ($1, $2, $3)
+            RETURNING ListID, UserID, ListName, IsPublic, CreatedAt
+            `,
+            [req.user.userId, listName.trim(), Boolean(isPublic)]
+        );
+
+        return res.status(201).json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error creating list:', error);
+        return res.status(500).json({ success: false, error: 'Failed to create list' });
+    }
+});
+
+app.put('/lists/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { listName, isPublic } = req.body;
+
+        const checkResult = await pool.query('SELECT UserID FROM User_List WHERE ListID = $1', [id]);
+
+        if (checkResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'List not found' });
+        }
+
+        if (Number(checkResult.rows[0].userid) !== Number(req.user.userId)) {
+            return res.status(403).json({ success: false, error: 'You can only edit your own list' });
+        }
+
+        const result = await pool.query(
+            `
+            UPDATE User_List
+            SET ListName = COALESCE($1, ListName),
+                IsPublic = COALESCE($2, IsPublic)
+            WHERE ListID = $3
+            RETURNING ListID, UserID, ListName, IsPublic, CreatedAt
+            `,
+            [listName ? listName.trim() : null, typeof isPublic === 'boolean' ? isPublic : null, id]
+        );
+
+        return res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error updating list:', error);
+        return res.status(500).json({ success: false, error: 'Failed to update list' });
+    }
+});
+
+app.delete('/lists/:id', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const checkResult = await pool.query('SELECT UserID FROM User_List WHERE ListID = $1', [id]);
+
+        if (checkResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'List not found' });
+        }
+
+        if (Number(checkResult.rows[0].userid) !== Number(req.user.userId)) {
+            return res.status(403).json({ success: false, error: 'You can only delete your own list' });
+        }
+
+        await pool.query('DELETE FROM User_List WHERE ListID = $1', [id]);
+
+        return res.json({ success: true, message: 'List deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting list:', error);
+        return res.status(500).json({ success: false, error: 'Failed to delete list' });
+    }
+});
+
+app.post('/lists/:id/items', requireAuth, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { mediaId } = req.body;
+
+        if (!mediaId) {
+            return res.status(400).json({ success: false, error: 'mediaId is required' });
+        }
+
+        const listOwnerResult = await pool.query('SELECT UserID FROM User_List WHERE ListID = $1', [id]);
+
+        if (listOwnerResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'List not found' });
+        }
+
+        if (Number(listOwnerResult.rows[0].userid) !== Number(req.user.userId)) {
+            return res.status(403).json({ success: false, error: 'You can only edit your own list' });
+        }
+
+        const mediaResult = await pool.query('SELECT MediaID FROM Media WHERE MediaID = $1 LIMIT 1', [mediaId]);
+        if (mediaResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Media not found' });
+        }
+
+        await pool.query(
+            `
+            INSERT INTO List_Items (ListID, MediaID)
+            VALUES ($1, $2)
+            ON CONFLICT (ListID, MediaID) DO NOTHING
+            `,
+            [id, mediaId]
+        );
+
+        return res.status(201).json({ success: true, message: 'Item added to list' });
+    } catch (error) {
+        console.error('Error adding list item:', error);
+        return res.status(500).json({ success: false, error: 'Failed to add item to list' });
+    }
+});
+
+app.delete('/lists/:id/items/:mediaId', requireAuth, async (req, res) => {
+    try {
+        const { id, mediaId } = req.params;
+        const listOwnerResult = await pool.query('SELECT UserID FROM User_List WHERE ListID = $1', [id]);
+
+        if (listOwnerResult.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'List not found' });
+        }
+
+        if (Number(listOwnerResult.rows[0].userid) !== Number(req.user.userId)) {
+            return res.status(403).json({ success: false, error: 'You can only edit your own list' });
+        }
+
+        await pool.query('DELETE FROM List_Items WHERE ListID = $1 AND MediaID = $2', [id, mediaId]);
+
+        return res.json({ success: true, message: 'Item removed from list' });
+    } catch (error) {
+        console.error('Error removing list item:', error);
+        return res.status(500).json({ success: false, error: 'Failed to remove item from list' });
+    }
+});
+
 // ══════════════════════════════════════════════
 // BLOG ROUTES
 // ══════════════════════════════════════════════
@@ -1777,11 +2196,32 @@ app.get('/blogs', async (req, res) => {
             pool.query('SELECT COUNT(*) AS total FROM Blog')
         ]);
 
+        const requesterUserId = getOptionalUserIdFromRequest(req);
+        let voteMap = new Map();
+
+        if (requesterUserId && result.rows.length > 0) {
+            const blogIds = result.rows.map((row) => Number(row.blogid));
+            const voteResult = await pool.query(
+                `
+                SELECT BlogID, VoteType
+                FROM BlogVotes
+                WHERE UserID = $1 AND BlogID = ANY($2::int[])
+                `,
+                [requesterUserId, blogIds]
+            );
+
+            voteMap = new Map(voteResult.rows.map((row) => [Number(row.blogid), row.votetype]));
+        }
+
         const total = parseInt(countResult.rows[0].total, 10);
+        const blogsWithUserVote = result.rows.map((row) => ({
+            ...row,
+            uservote: voteMap.get(Number(row.blogid)) || null
+        }));
 
         return res.json({
             success: true,
-            data: result.rows,
+            data: blogsWithUserVote,
             pagination: {
                 page,
                 limit,
@@ -1801,6 +2241,7 @@ app.get('/blogs', async (req, res) => {
 app.get('/blogs/:id', async (req, res) => {
     try {
         const { id } = req.params;
+        const requesterUserId = getOptionalUserIdFromRequest(req);
 
         const [blogResult, mentionResult] = await Promise.all([
             pool.query(
@@ -1858,11 +2299,21 @@ app.get('/blogs/:id', async (req, res) => {
             return { type: 'list', id: row.listid, title: row.listname || 'List' };
         });
 
+        let userVote = null;
+        if (requesterUserId) {
+            const voteResult = await pool.query(
+                'SELECT VoteType FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 LIMIT 1',
+                [id, requesterUserId]
+            );
+            userVote = voteResult.rows[0]?.votetype || null;
+        }
+
         return res.json({
             success: true,
             data: {
                 ...blogResult.rows[0],
-                mentions
+                mentions,
+                uservote: userVote
             }
         });
     } catch (error) {
@@ -2039,70 +2490,205 @@ app.delete('/blogs/:id', requireAuth, async (req, res) => {
 });
 
 app.post('/blogs/:id/upvote', requireAuth, async (req, res) => {
+    const client = await pool.connect();
     try {
         const { id } = req.params;
+        const userId = req.user.userId;
 
-        const result = await pool.query(
-            `
-            UPDATE Blog
-            SET UpvoteCount = UpvoteCount + 1
-            WHERE BlogID = $1
-            RETURNING BlogID, UpvoteCount, DownvoteCount
-            `,
-            [id]
-        );
+        await client.query('BEGIN');
 
-        if (result.rows.length === 0) {
+        const blogCheck = await client.query('SELECT BlogID FROM Blog WHERE BlogID = $1 FOR UPDATE', [id]);
+        if (blogCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({
                 success: false,
                 error: 'Blog not found'
             });
         }
 
-        return res.json({ success: true, data: result.rows[0] });
+        const existingVote = await client.query(
+            'SELECT VoteType FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 LIMIT 1',
+            [id, userId]
+        );
+
+        let userVote = 'upvote';
+        let action = 'added';
+
+        if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'upvote') {
+            await client.query(
+                'DELETE FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 AND VoteType = $3',
+                [id, userId, 'upvote']
+            );
+
+            await client.query(
+                `
+                UPDATE Blog
+                SET UpvoteCount = GREATEST(UpvoteCount - 1, 0)
+                WHERE BlogID = $1
+                `,
+                [id]
+            );
+
+            userVote = null;
+            action = 'removed';
+        } else if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'downvote') {
+            await client.query(
+                `
+                UPDATE BlogVotes
+                SET VoteType = 'upvote', CreatedAt = CURRENT_TIMESTAMP
+                WHERE BlogID = $1 AND UserID = $2
+                `,
+                [id, userId]
+            );
+
+            await client.query(
+                `
+                UPDATE Blog
+                SET UpvoteCount = UpvoteCount + 1,
+                    DownvoteCount = GREATEST(DownvoteCount - 1, 0)
+                WHERE BlogID = $1
+                `,
+                [id]
+            );
+
+            action = 'switched';
+        } else {
+            await client.query(
+                'INSERT INTO BlogVotes (BlogID, UserID, VoteType) VALUES ($1, $2, $3)',
+                [id, userId, 'upvote']
+            );
+
+            await client.query(
+                `
+                UPDATE Blog
+                SET UpvoteCount = UpvoteCount + 1
+                WHERE BlogID = $1
+                `,
+                [id]
+            );
+        }
+
+        const result = await client.query(
+            'SELECT BlogID, UpvoteCount, DownvoteCount FROM Blog WHERE BlogID = $1',
+            [id]
+        );
+
+        await client.query('COMMIT');
+        return res.json({ success: true, data: { ...result.rows[0], uservote: userVote }, action });
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error upvoting blog:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to upvote blog'
         });
+    } finally {
+        client.release();
     }
 });
 
 app.post('/blogs/:id/downvote', requireAuth, async (req, res) => {
+    const client = await pool.connect();
     try {
         const { id } = req.params;
+        const userId = req.user.userId;
 
-        const result = await pool.query(
-            `
-            UPDATE Blog
-            SET DownvoteCount = DownvoteCount + 1
-            WHERE BlogID = $1
-            RETURNING BlogID, UpvoteCount, DownvoteCount
-            `,
-            [id]
-        );
+        await client.query('BEGIN');
 
-        if (result.rows.length === 0) {
+        const blogCheck = await client.query('SELECT BlogID FROM Blog WHERE BlogID = $1 FOR UPDATE', [id]);
+        if (blogCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({
                 success: false,
                 error: 'Blog not found'
             });
         }
 
-        return res.json({ success: true, data: result.rows[0] });
+        const existingVote = await client.query(
+            'SELECT VoteType FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 LIMIT 1',
+            [id, userId]
+        );
+
+        let userVote = 'downvote';
+        let action = 'added';
+
+        if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'downvote') {
+            await client.query(
+                'DELETE FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 AND VoteType = $3',
+                [id, userId, 'downvote']
+            );
+
+            await client.query(
+                `
+                UPDATE Blog
+                SET DownvoteCount = GREATEST(DownvoteCount - 1, 0)
+                WHERE BlogID = $1
+                `,
+                [id]
+            );
+
+            userVote = null;
+            action = 'removed';
+        } else if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'upvote') {
+            await client.query(
+                `
+                UPDATE BlogVotes
+                SET VoteType = 'downvote', CreatedAt = CURRENT_TIMESTAMP
+                WHERE BlogID = $1 AND UserID = $2
+                `,
+                [id, userId]
+            );
+
+            await client.query(
+                `
+                UPDATE Blog
+                SET DownvoteCount = DownvoteCount + 1,
+                    UpvoteCount = GREATEST(UpvoteCount - 1, 0)
+                WHERE BlogID = $1
+                `,
+                [id]
+            );
+
+            action = 'switched';
+        } else {
+            await client.query(
+                'INSERT INTO BlogVotes (BlogID, UserID, VoteType) VALUES ($1, $2, $3)',
+                [id, userId, 'downvote']
+            );
+
+            await client.query(
+                `
+                UPDATE Blog
+                SET DownvoteCount = DownvoteCount + 1
+                WHERE BlogID = $1
+                `,
+                [id]
+            );
+        }
+
+        const result = await client.query(
+            'SELECT BlogID, UpvoteCount, DownvoteCount FROM Blog WHERE BlogID = $1',
+            [id]
+        );
+
+        await client.query('COMMIT');
+        return res.json({ success: true, data: { ...result.rows[0], uservote: userVote }, action });
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error downvoting blog:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to downvote blog'
         });
+    } finally {
+        client.release();
     }
 });
 
 app.get('/blogs/:id/comments', async (req, res) => {
     try {
         const { id } = req.params;
+        const requesterUserId = getOptionalUserIdFromRequest(req);
 
         const [commentsResult, mentionsResult] = await Promise.all([
             pool.query(
@@ -2163,9 +2749,29 @@ app.get('/blogs/:id/comments', async (req, res) => {
             };
         });
 
+        let voteMap = new Map();
+        if (requesterUserId && comments.length > 0) {
+            const commentIds = comments.map((row) => Number(row.commentid));
+            const voteResult = await pool.query(
+                `
+                SELECT CommentID, VoteType
+                FROM CommentVotes
+                WHERE UserID = $1 AND CommentID = ANY($2::int[])
+                `,
+                [requesterUserId, commentIds]
+            );
+
+            voteMap = new Map(voteResult.rows.map((row) => [Number(row.commentid), row.votetype]));
+        }
+
+        const commentsWithUserVote = comments.map((row) => ({
+            ...row,
+            uservote: voteMap.get(Number(row.commentid)) || null
+        }));
+
         return res.json({
             success: true,
-            data: comments
+            data: commentsWithUserVote
         });
     } catch (error) {
         console.error('Error fetching comments:', error);
@@ -2355,64 +2961,198 @@ app.delete('/comments/:id', requireAuth, async (req, res) => {
 });
 
 app.post('/comments/:id/upvote', requireAuth, async (req, res) => {
+    const client = await pool.connect();
     try {
         const { id } = req.params;
+        const userId = req.user.userId;
 
-        const result = await pool.query(
-            `
-            UPDATE Comments
-            SET UpvoteCount = UpvoteCount + 1
-            WHERE CommentID = $1
-            RETURNING CommentID, UpvoteCount, DownvoteCount
-            `,
-            [id]
-        );
+        await client.query('BEGIN');
 
-        if (result.rows.length === 0) {
+        const commentCheck = await client.query('SELECT CommentID FROM Comments WHERE CommentID = $1 FOR UPDATE', [id]);
+        if (commentCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({
                 success: false,
                 error: 'Comment not found'
             });
         }
 
-        return res.json({ success: true, data: result.rows[0] });
+        const existingVote = await client.query(
+            'SELECT VoteType FROM CommentVotes WHERE CommentID = $1 AND UserID = $2 LIMIT 1',
+            [id, userId]
+        );
+
+        let userVote = 'upvote';
+        let action = 'added';
+
+        if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'upvote') {
+            await client.query(
+                'DELETE FROM CommentVotes WHERE CommentID = $1 AND UserID = $2 AND VoteType = $3',
+                [id, userId, 'upvote']
+            );
+
+            await client.query(
+                `
+                UPDATE Comments
+                SET UpvoteCount = GREATEST(UpvoteCount - 1, 0)
+                WHERE CommentID = $1
+                `,
+                [id]
+            );
+
+            userVote = null;
+            action = 'removed';
+        } else if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'downvote') {
+            await client.query(
+                `
+                UPDATE CommentVotes
+                SET VoteType = 'upvote', CreatedAt = CURRENT_TIMESTAMP
+                WHERE CommentID = $1 AND UserID = $2
+                `,
+                [id, userId]
+            );
+
+            await client.query(
+                `
+                UPDATE Comments
+                SET UpvoteCount = UpvoteCount + 1,
+                    DownvoteCount = GREATEST(DownvoteCount - 1, 0)
+                WHERE CommentID = $1
+                `,
+                [id]
+            );
+
+            action = 'switched';
+        } else {
+            await client.query(
+                'INSERT INTO CommentVotes (CommentID, UserID, VoteType) VALUES ($1, $2, $3)',
+                [id, userId, 'upvote']
+            );
+
+            await client.query(
+                `
+                UPDATE Comments
+                SET UpvoteCount = UpvoteCount + 1
+                WHERE CommentID = $1
+                `,
+                [id]
+            );
+        }
+
+        const result = await client.query(
+            'SELECT CommentID, UpvoteCount, DownvoteCount FROM Comments WHERE CommentID = $1',
+            [id]
+        );
+
+        await client.query('COMMIT');
+        return res.json({ success: true, data: { ...result.rows[0], uservote: userVote }, action });
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error upvoting comment:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to upvote comment'
         });
+    } finally {
+        client.release();
     }
 });
 
 app.post('/comments/:id/downvote', requireAuth, async (req, res) => {
+    const client = await pool.connect();
     try {
         const { id } = req.params;
+        const userId = req.user.userId;
 
-        const result = await pool.query(
-            `
-            UPDATE Comments
-            SET DownvoteCount = DownvoteCount + 1
-            WHERE CommentID = $1
-            RETURNING CommentID, UpvoteCount, DownvoteCount
-            `,
-            [id]
-        );
+        await client.query('BEGIN');
 
-        if (result.rows.length === 0) {
+        const commentCheck = await client.query('SELECT CommentID FROM Comments WHERE CommentID = $1 FOR UPDATE', [id]);
+        if (commentCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
             return res.status(404).json({
                 success: false,
                 error: 'Comment not found'
             });
         }
 
-        return res.json({ success: true, data: result.rows[0] });
+        const existingVote = await client.query(
+            'SELECT VoteType FROM CommentVotes WHERE CommentID = $1 AND UserID = $2 LIMIT 1',
+            [id, userId]
+        );
+
+        let userVote = 'downvote';
+        let action = 'added';
+
+        if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'downvote') {
+            await client.query(
+                'DELETE FROM CommentVotes WHERE CommentID = $1 AND UserID = $2 AND VoteType = $3',
+                [id, userId, 'downvote']
+            );
+
+            await client.query(
+                `
+                UPDATE Comments
+                SET DownvoteCount = GREATEST(DownvoteCount - 1, 0)
+                WHERE CommentID = $1
+                `,
+                [id]
+            );
+
+            userVote = null;
+            action = 'removed';
+        } else if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'upvote') {
+            await client.query(
+                `
+                UPDATE CommentVotes
+                SET VoteType = 'downvote', CreatedAt = CURRENT_TIMESTAMP
+                WHERE CommentID = $1 AND UserID = $2
+                `,
+                [id, userId]
+            );
+
+            await client.query(
+                `
+                UPDATE Comments
+                SET DownvoteCount = DownvoteCount + 1,
+                    UpvoteCount = GREATEST(UpvoteCount - 1, 0)
+                WHERE CommentID = $1
+                `,
+                [id]
+            );
+
+            action = 'switched';
+        } else {
+            await client.query(
+                'INSERT INTO CommentVotes (CommentID, UserID, VoteType) VALUES ($1, $2, $3)',
+                [id, userId, 'downvote']
+            );
+
+            await client.query(
+                `
+                UPDATE Comments
+                SET DownvoteCount = DownvoteCount + 1
+                WHERE CommentID = $1
+                `,
+                [id]
+            );
+        }
+
+        const result = await client.query(
+            'SELECT CommentID, UpvoteCount, DownvoteCount FROM Comments WHERE CommentID = $1',
+            [id]
+        );
+
+        await client.query('COMMIT');
+        return res.json({ success: true, data: { ...result.rows[0], uservote: userVote }, action });
     } catch (error) {
+        await client.query('ROLLBACK');
         console.error('Error downvoting comment:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to downvote comment'
         });
+    } finally {
+        client.release();
     }
 });
 

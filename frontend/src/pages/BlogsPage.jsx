@@ -18,7 +18,8 @@ export default function BlogsPage() {
   const fetchBlogs = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:3000/blogs?page=${page}&limit=10&sort=${sort}`);
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await fetch(`http://localhost:3000/blogs?page=${page}&limit=10&sort=${sort}`, { headers });
       const json = await response.json();
       if (json.success) {
         setBlogs(json.data);
@@ -57,7 +58,8 @@ export default function BlogsPage() {
             return {
               ...blog,
               upvotecount: json.data.upvotecount,
-              downvotecount: json.data.downvotecount
+              downvotecount: json.data.downvotecount,
+              uservote: json.data.uservote ?? null
             };
           }
           return blog;
@@ -152,10 +154,10 @@ export default function BlogsPage() {
             </p>
             
             <div className="blog-actions">
-              <button className="action-btn" onClick={(e) => handleVote(e, blog.blogid, 'upvote')}>
+              <button className={`action-btn vote-up ${blog.uservote === 'upvote' ? 'active' : ''}`} onClick={(e) => handleVote(e, blog.blogid, 'upvote')}>
                 <ThumbsUp /> {blog.upvotecount}
               </button>
-              <button className="action-btn" onClick={(e) => handleVote(e, blog.blogid, 'downvote')}>
+              <button className={`action-btn vote-down ${blog.uservote === 'downvote' ? 'active' : ''}`} onClick={(e) => handleVote(e, blog.blogid, 'downvote')}>
                 <ThumbsDown /> {blog.downvotecount}
               </button>
               <button className="action-btn">

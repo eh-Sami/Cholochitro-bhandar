@@ -196,10 +196,10 @@ const CommentNode = ({ comment, currentUser, token, handleEntityVote, renderCont
         )}
 
         <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem' }}>
-          <button className="action-btn" onClick={() => handleEntityVote(comment.commentid, 'upvote', true)} style={{ padding: '0.2rem 0.5rem' }}>
+          <button className={`action-btn vote-up ${comment.uservote === 'upvote' ? 'active' : ''}`} onClick={() => handleEntityVote(comment.commentid, 'upvote', true)} style={{ padding: '0.2rem 0.5rem' }}>
             <ThumbsUp size={14} /> {comment.upvotecount}
           </button>
-          <button className="action-btn" onClick={() => handleEntityVote(comment.commentid, 'downvote', true)} style={{ padding: '0.2rem 0.5rem' }}>
+          <button className={`action-btn vote-down ${comment.uservote === 'downvote' ? 'active' : ''}`} onClick={() => handleEntityVote(comment.commentid, 'downvote', true)} style={{ padding: '0.2rem 0.5rem' }}>
             <ThumbsDown size={14} /> {comment.downvotecount}
           </button>
           <button className="action-btn" style={{ padding: '0.2rem 0.5rem', marginLeft: 'auto' }} onClick={() => {
@@ -291,9 +291,10 @@ export default function BlogDetailPage() {
   const fetchBlogAndComments = useCallback(async () => {
     setLoading(true);
     try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const [blogRes, commentsRes] = await Promise.all([
-        fetch(`http://localhost:3000/blogs/${id}`),
-        fetch(`http://localhost:3000/blogs/${id}/comments`)
+        fetch(`http://localhost:3000/blogs/${id}`, { headers }),
+        fetch(`http://localhost:3000/blogs/${id}/comments`, { headers })
       ]);
       
       const blogJson = await blogRes.json();
@@ -338,7 +339,7 @@ export default function BlogDetailPage() {
           // Update comment vote counts locally
           setComments(prev => prev.map(c => 
             c.commentid === entityId 
-              ? { ...c, upvotecount: json.data.upvotecount, downvotecount: json.data.downvotecount }
+              ? { ...c, upvotecount: json.data.upvotecount, downvotecount: json.data.downvotecount, uservote: json.data.uservote ?? null }
               : c
           ));
         } else {
@@ -346,7 +347,8 @@ export default function BlogDetailPage() {
           setBlog(prev => ({
             ...prev,
             upvotecount: json.data.upvotecount,
-            downvotecount: json.data.downvotecount
+            downvotecount: json.data.downvotecount,
+            uservote: json.data.uservote ?? null
           }));
         }
       }
@@ -528,10 +530,10 @@ export default function BlogDetailPage() {
 
         {/* Voting Actions */}
         <div style={{ display: 'flex', gap: '1rem', borderTop: '1px solid #edf0f6', paddingTop: '1rem' }}>
-          <button className="action-btn" onClick={() => handleEntityVote(blog.blogid, 'upvote', false)}>
+          <button className={`action-btn vote-up ${blog.uservote === 'upvote' ? 'active' : ''}`} onClick={() => handleEntityVote(blog.blogid, 'upvote', false)}>
             <ThumbsUp /> {blog.upvotecount}
           </button>
-          <button className="action-btn" onClick={() => handleEntityVote(blog.blogid, 'downvote', false)}>
+          <button className={`action-btn vote-down ${blog.uservote === 'downvote' ? 'active' : ''}`} onClick={() => handleEntityVote(blog.blogid, 'downvote', false)}>
             <ThumbsDown /> {blog.downvotecount}
           </button>
         </div>

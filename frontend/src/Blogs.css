@@ -117,6 +117,22 @@
   color: var(--accent-strong);
 }
 
+.action-btn.vote-up.active {
+  background: #22c55e;
+  color: #ffffff;
+}
+
+.action-btn.vote-down.active {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.action-btn.vote-up.active:hover,
+.action-btn.vote-down.active:hover {
+  color: #ffffff;
+  filter: brightness(0.95);
+}
+
 .action-btn svg {
   width: 18px;
   height: 18px;

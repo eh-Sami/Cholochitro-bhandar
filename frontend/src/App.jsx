@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Route, Routes } from 'react-router-dom'
+import { Link, Route, Routes, Navigate } from 'react-router-dom'
 import './App.css'
 import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
@@ -15,6 +15,8 @@ import BlogsPage from './pages/BlogsPage'
 import BlogDetailPage from './pages/BlogDetailPage'
 import CreateBlogPage from './pages/CreateBlogPage'
 import EditBlogPage from './pages/EditBlogPage'
+import ListsPage from './pages/ListsPage'
+import ListDetailPage from './pages/ListDetailPage'
 import { clearStoredAuth, getStoredAuth, setStoredAuth } from './utils/auth'
 
 function App() {
@@ -39,6 +41,7 @@ function App() {
           <Link to="/movies">Movies</Link>
           <Link to="/tvshows">TV Shows</Link>
           <Link to="/blogs">Blogs</Link>
+          <Link to="/lists">Lists</Link>
           <Link to="/search">Search</Link>
           {authUser ? (
             <>
@@ -64,8 +67,10 @@ function App() {
         <Route path="/tvshows/:id" element={<TVShowDetailsPage />} />
         <Route path="/tvshows/:id/seasons" element={<TVShowSeasonsPage />} />
         <Route path="/blogs" element={<BlogsPage />} />
-        <Route path="/blogs/new" element={<CreateBlogPage />} />
-        <Route path="/blogs/:id/edit" element={<EditBlogPage />} />
+        <Route path="/lists" element={<ListsPage />} />
+        <Route path="/lists/:id" element={<ListDetailPage />} />
+        <Route path="/blogs/new" element={authUser ? <CreateBlogPage /> : <Navigate to="/login" />} />
+        <Route path="/blogs/:id/edit" element={authUser ? <EditBlogPage /> : <Navigate to="/login" />} />
         <Route path="/blogs/:id" element={<BlogDetailPage />} />
         <Route path="/search" element={<SearchPage />} />
       </Routes>
