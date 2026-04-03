@@ -5,8 +5,9 @@ import { getAuthToken, getStoredAuth } from '../utils/auth'
 const API_BASE = 'http://localhost:3000'
 
 function MediaReviewsSection({ mediaId }) {
-    const [websiteRating, setWebsiteRating] = useState(null)
+    const [currentRating, setCurrentRating] = useState(null)
     const [reviewCount, setReviewCount] = useState(0)
+    const [ratingCount, setRatingCount] = useState(0)
     const [reviews, setReviews] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -34,8 +35,9 @@ function MediaReviewsSection({ mediaId }) {
                 throw new Error(data.error || 'Failed to fetch reviews')
             }
 
-            setWebsiteRating(data.data.websiteRating)
+            setCurrentRating(data.data.rating)
             setReviewCount(data.data.reviewCount || 0)
+            setRatingCount(data.data.ratingCount || 0)
             setReviews(data.data.reviews || [])
         } catch (err) {
             setError(err.message || 'Failed to fetch reviews')
@@ -90,15 +92,15 @@ function MediaReviewsSection({ mediaId }) {
 
     return (
         <section className="detail-section reviews-section">
-            <h3>Website Rating & Reviews</h3>
+            <h3>Rating & Reviews</h3>
 
             <div className="website-rating-box">
-                <span className="website-rating-label">Website Rating</span>
+                <span className="website-rating-label">Rating</span>
                 <strong className="website-rating-value">
-                    {websiteRating ? `⭐ ${websiteRating}` : 'Not enough ratings yet'}
+                    {currentRating ? `⭐ ${currentRating}` : 'Not enough ratings yet'}
                 </strong>
                 <span className="website-rating-count">
-                    {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                    {ratingCount || reviewCount} {((ratingCount || reviewCount) === 1) ? 'rating' : 'ratings'}
                 </span>
             </div>
 
@@ -143,7 +145,7 @@ function MediaReviewsSection({ mediaId }) {
                     </button>
                 </form>
             ) : (
-                <p className="status">Please <Link to="/login">login</Link> to add your website rating.</p>
+                <p className="status">Please <Link to="/login">login</Link> to add your rating.</p>
             )}
 
             {loading && <p className="status">Loading reviews...</p>}

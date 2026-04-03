@@ -5,8 +5,9 @@ import { getAuthToken, getStoredAuth } from '../utils/auth'
 const API_BASE = 'http://localhost:3000'
 
 function EpisodeReviewsSection({ mediaId, seasonNo, episodeNo }) {
-    const [websiteRating, setWebsiteRating] = useState(null)
+    const [currentRating, setCurrentRating] = useState(null)
     const [reviewCount, setReviewCount] = useState(0)
+    const [ratingCount, setRatingCount] = useState(0)
     const [reviews, setReviews] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -31,8 +32,9 @@ function EpisodeReviewsSection({ mediaId, seasonNo, episodeNo }) {
                 throw new Error(data.error || 'Failed to fetch episode reviews')
             }
 
-            setWebsiteRating(data.data.websiteRating)
+            setCurrentRating(data.data.rating)
             setReviewCount(data.data.reviewCount || 0)
+            setRatingCount(data.data.ratingCount || 0)
             setReviews(data.data.reviews || [])
         } catch (err) {
             setError(err.message || 'Failed to fetch episode reviews')
@@ -92,12 +94,12 @@ function EpisodeReviewsSection({ mediaId, seasonNo, episodeNo }) {
     return (
         <div className="episode-reviews-section">
             <div className="website-rating-box">
-                <span className="website-rating-label">Episode Website Rating</span>
+                <span className="website-rating-label">Episode Rating</span>
                 <strong className="website-rating-value">
-                    {websiteRating ? `⭐ ${websiteRating}` : 'Not enough ratings yet'}
+                    {currentRating ? `⭐ ${currentRating}` : 'Not enough ratings yet'}
                 </strong>
                 <span className="website-rating-count">
-                    {reviewCount} {reviewCount === 1 ? 'review' : 'reviews'}
+                    {(ratingCount || reviewCount)} {((ratingCount || reviewCount) === 1) ? 'rating' : 'ratings'}
                 </span>
             </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { getAuthToken, getStoredAuth } from '../utils/auth'
 
 const API_BASE = 'http://localhost:3000'
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w500'
@@ -42,8 +43,14 @@ const getYouTubeEmbedUrl = (trailerUrl) => {
 
 function TVShowDetailsPage() {
     const { id } = useParams()
+    const { user } = getStoredAuth()
+    const token = getAuthToken()
     const [show, setShow] = useState(null)
     const [rank, setRank] = useState(null)
+    const [myLists, setMyLists] = useState([])
+    const [selectedListId, setSelectedListId] = useState('')
+    const [listActionStatus, setListActionStatus] = useState('')
+    const [addingToList, setAddingToList] = useState(false)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [selectedSeasonNo, setSelectedSeasonNo] = useState(null)
@@ -85,6 +92,79 @@ function TVShowDetailsPage() {
             setSelectedSeasonNo(show.seasons[0].seasonno)
         }
     }, [show, selectedSeasonNo])
+
+    useEffect(() => {
+        const fetchMyLists = async () => {
+            if (!token) {
+                setMyLists([])
+                setSelectedListId('')
+                return
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/lists?mine=true&limit=100&page=1`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                })
+                const data = await response.json()
+
+                if (!response.ok || !data.success) {
+                    return
+                }
+
+                const rows = data.data || []
+                setMyLists(rows)
+
+                if (rows.length > 0) {
+                    setSelectedListId(String(rows[0].listid))
+                }
+            } catch {
+                setMyLists([])
+                setSelectedListId('')
+            }
+        }
+
+        fetchMyLists()
+    }, [token])
+
+    const handleAddToList = async () => {
+        if (!token) {
+            setListActionStatus('Please login to add this title to a list.')
+            return
+        }
+
+        if (!selectedListId) {
+            setListActionStatus('Please select a list first.')
+            return
+        }
+
+        setAddingToList(true)
+        setListActionStatus('')
+
+        try {
+            const response = await fetch(`${API_BASE}/lists/${selectedListId}/items`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ mediaId: Number(id) })
+            })
+
+            const data = await response.json()
+
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to add title to list')
+            }
+
+            setListActionStatus('Added to list successfully.')
+        } catch (err) {
+            setListActionStatus(err.message || 'Failed to add title to list')
+        } finally {
+            setAddingToList(false)
+        }
+    }
 
     if (loading) {
         return <p className="status">Loading TV show...</p>
@@ -160,16 +240,11 @@ function TVShowDetailsPage() {
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">⭐</span>
-                                        <span className="detail-fact-label">Global Rating</span>
-                                        <strong className="detail-fact-value">{show.rating ? `⭐ ${show.rating}` : 'N/A'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">🧑</span>
-                                        <span className="detail-fact-label">Website Rating</span>
+                                        <span className="detail-fact-label">Rating</span>
                                         <strong className="detail-fact-value">
-                                            {show.websiteRating ? `⭐ ${show.websiteRating}` : 'N/A'}
+                                            {show.rating ? `⭐ ${show.rating}` : 'N/A'}
                                         </strong>
-                                        <small>{show.reviewCount || 0} episode reviews</small>
+                                        <small>{show.ratingcount || 0} ratings</small>
                                     </div>
                                     <div className="detail-fact">
                                         <span className="detail-fact-icon">🏆</span>
@@ -187,8 +262,37 @@ function TVShowDetailsPage() {
                             </div>
 
                             <div className="detail-section">
-                                <h3>Website Reviews</h3>
-                                <p className="status">For TV series, users rate and review episodes. Season and website ratings are derived from episode reviews.</p>
+                                <h3>Add To List</h3>
+                                {!user && (
+                                    <p className="status">Please <Link to="/login">login</Link> to add this title to your lists.</p>
+                                )}
+
+                                {user && myLists.length === 0 && (
+                                    <p className="status">You have no lists yet. <Link to="/lists">Create one first</Link>.</p>
+                                )}
+
+                                {user && myLists.length > 0 && (
+                                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <select value={selectedListId} onChange={(event) => setSelectedListId(event.target.value)}>
+                                            {myLists.map((list) => (
+                                                <option key={list.listid} value={list.listid}>
+                                                    {list.listname}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <button type="button" className="btn btn-primary btn-sm" onClick={handleAddToList} disabled={addingToList}>
+                                            {addingToList ? 'Adding...' : 'Add'}
+                                        </button>
+                                        <Link className="btn btn-ghost btn-sm" to="/lists">Manage Lists</Link>
+                                    </div>
+                                )}
+
+                                {listActionStatus && <p className="status" style={{ marginTop: '0.5rem' }}>{listActionStatus}</p>}
+                            </div>
+
+                            <div className="detail-section">
+                                <h3>Episode Reviews</h3>
+                                <p className="status">For TV series, users rate and review episodes. Season ratings are shown separately.</p>
                                 <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
                                     Go To Episode Reviews
                                 </Link>

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import MoviesList from '../components/MoviesList'
+import PublicListsPreview from '../components/PublicListsPreview'
 import TopActorsPreview from '../components/TopActorsPreview'
 import TVShowsList from '../components/TVShowsList'
 
@@ -39,6 +40,10 @@ function HomePage() {
 
             <section className="home-section">
                 <TopActorsPreview limit={8} />
+            </section>
+
+            <section className="home-section">
+                <PublicListsPreview limit={6} />
             </section>
         </main>
     )

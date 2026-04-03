@@ -710,6 +710,106 @@
   margin-bottom: 0.5rem;
 }
 
+.lists-page {
+  display: grid;
+  gap: 1rem;
+}
+
+.lists-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid #dfe5f2;
+  background: linear-gradient(120deg, rgba(139, 141, 248, 0.16), rgba(67, 212, 194, 0.08));
+}
+
+.lists-hero h2 {
+  margin: 0;
+}
+
+.lists-hero p {
+  margin: 0.3rem 0 0;
+  color: #4e5a72;
+}
+
+.lists-hero-chip {
+  border: 1px solid #cfd7ea;
+  border-radius: 999px;
+  background: #ffffff;
+  padding: 0.36rem 0.75rem;
+  font-size: 0.8rem;
+  color: #3f4d68;
+  white-space: nowrap;
+}
+
+.lists-create-panel {
+  border-top: 3px solid var(--accent-strong);
+}
+
+.lists-create-form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.lists-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 0.85rem;
+}
+
+.list-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.list-card::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent-teal));
+  opacity: 0.7;
+}
+
+.lists-count-pill {
+  border: 1px solid #d6dced;
+  border-radius: 999px;
+  min-width: 2rem;
+  text-align: center;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  background: #f6f8ff;
+}
+
+.list-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.list-badge.public {
+  background: rgba(67, 212, 194, 0.18);
+  color: #1e7469;
+}
+
+.list-badge.private {
+  background: rgba(233, 156, 77, 0.18);
+  color: #8a5118;
+}
+
+@media (max-width: 760px) {
+  .lists-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 .studio-logo.placeholder {
   color: #6b7488;
   font-size: 0.85rem;
