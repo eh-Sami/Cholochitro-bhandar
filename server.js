@@ -1527,7 +1527,6 @@ app.get('/search', async (req, res) => {
         // Get search query from URL
         const query = req.query.q;
         const titleOnly = req.query.titleOnly === 'true' || req.query.titleOnly === '1';
-        const exactTitle = req.query.exactTitle === 'true' || req.query.exactTitle === '1';
 
         // Validate search query exists
         if (!query || query.trim().length === 0) {
@@ -1546,40 +1545,12 @@ app.get('/search', async (req, res) => {
         // ILIKE = case-insensitive search in PostgreSQL
         // %query% = matches anywhere in the text
         const searchPattern = `%${query}%`;  // Add wildcards for partial matching
-        const exactWords = query.trim().split(/\s+/).filter(Boolean);
 
         let searchQuery;
         let countQuery;
         let searchParams;
 
-        if (exactTitle) {
-            const wordConditions = exactWords.map((word, index) => `Title ~* $${index + 1}`);
-            const regexPatterns = exactWords.map((word) => `(^|\\W)${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\W|$)`);
-
-            searchQuery = `
-                SELECT
-                    MediaID,
-                    Title,
-                    ReleaseYear,
-                    Description,
-                    Rating,
-                    Poster,
-                    MediaType,
-                    3 as relevance
-                FROM Media
-                WHERE ${wordConditions.join(' AND ')}
-                ORDER BY Rating DESC NULLS LAST, Title ASC
-                LIMIT $${exactWords.length + 1} OFFSET $${exactWords.length + 2}
-            `;
-
-            countQuery = `
-                SELECT COUNT(*) as total
-                FROM Media
-                WHERE ${wordConditions.join(' AND ')}
-            `;
-
-            searchParams = [...regexPatterns, limit, offset];
-        } else if (titleOnly) {
+        if (titleOnly) {
             searchQuery = `
                 SELECT
                     MediaID,
@@ -1640,7 +1611,7 @@ app.get('/search', async (req, res) => {
         
         const [result, countResult] = await Promise.all([
             pool.query(searchQuery, searchParams),
-            pool.query(countQuery, exactTitle ? searchParams.slice(0, -2) : titleOnly ? [searchPattern] : [searchPattern])
+            pool.query(countQuery, [searchPattern])
         ]);
 
         const total = parseInt(countResult.rows[0].total);
@@ -2041,9 +2012,6 @@ app.delete('/lists/:id/items/:mediaId', requireAuth, async (req, res) => {
     }
 });
 
-// ══════════════════════════════════════════════
-// BLOG ROUTES
-// ══════════════════════════════════════════════
 
 app.get('/blogs', async (req, res) => {
     try {

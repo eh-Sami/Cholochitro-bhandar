@@ -276,6 +276,8 @@ export default function BlogDetailPage() {
   const navigate = useNavigate();
   const [blog, setBlog] = useState(null);
   const [comments, setComments] = useState([]);
+  const [blogVoteError, setBlogVoteError] = useState('');
+  const [commentVoteError, setCommentVoteError] = useState('');
   const [loading, setLoading] = useState(true);
   const [showBlogMenu, setShowBlogMenu] = useState(false);
   const { user: currentUser } = getStoredAuth();
@@ -315,8 +317,18 @@ export default function BlogDetailPage() {
   }, [fetchBlogAndComments]);
 
   const handleEntityVote = async (entityId, type, isComment = false) => {
+    if (isComment) {
+      setCommentVoteError('');
+    } else {
+      setBlogVoteError('');
+    }
+
     if (!currentUser || !token) {
-      alert("You must be logged in to vote!");
+      if (isComment) {
+        setCommentVoteError('Please login to vote on comments.');
+      } else {
+        setBlogVoteError('Please login to vote on blogs.');
+      }
       return;
     }
     
@@ -333,27 +345,39 @@ export default function BlogDetailPage() {
         }
       });
       const json = await response.json();
-      
-      if (json.success) {
+
+      if (!response.ok || !json.success) {
         if (isComment) {
-          // Update comment vote counts locally
-          setComments(prev => prev.map(c => 
-            c.commentid === entityId 
-              ? { ...c, upvotecount: json.data.upvotecount, downvotecount: json.data.downvotecount, uservote: json.data.uservote ?? null }
-              : c
-          ));
+          setCommentVoteError(json.error || `Failed to ${type} this comment.`);
         } else {
-          // Update blog vote counts locally
-          setBlog(prev => ({
-            ...prev,
-            upvotecount: json.data.upvotecount,
-            downvotecount: json.data.downvotecount,
-            uservote: json.data.uservote ?? null
-          }));
+          setBlogVoteError(json.error || `Failed to ${type} this blog.`);
         }
+        return;
+      }
+      
+      if (isComment) {
+        // Update comment vote counts locally
+        setComments(prev => prev.map(c => 
+          c.commentid === entityId 
+            ? { ...c, upvotecount: json.data.upvotecount, downvotecount: json.data.downvotecount, uservote: json.data.uservote ?? null }
+            : c
+        ));
+      } else {
+        // Update blog vote counts locally
+        setBlog(prev => ({
+          ...prev,
+          upvotecount: json.data.upvotecount,
+          downvotecount: json.data.downvotecount,
+          uservote: json.data.uservote ?? null
+        }));
       }
     } catch (error) {
       console.error(`Error ${type}ing:`, error);
+      if (isComment) {
+        setCommentVoteError('Could not submit your comment vote right now. Please try again.');
+      } else {
+        setBlogVoteError('Could not submit your blog vote right now. Please try again.');
+      }
     }
   };
 
@@ -547,6 +571,11 @@ export default function BlogDetailPage() {
             <ThumbsDown /> {blog.downvotecount}
           </button>
         </div>
+        {blogVoteError && (
+          <p style={{ marginTop: '0.8rem', color: '#b42318', background: '#fef3f2', border: '1px solid #fecdca', borderRadius: '8px', padding: '0.65rem 0.8rem' }}>
+            {blogVoteError}
+          </p>
+        )}
       </div>
 
       {/* Comments Section */}
@@ -554,6 +583,11 @@ export default function BlogDetailPage() {
         <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
           <MessageSquare size={24} /> {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
         </h2>
+        {commentVoteError && (
+          <p style={{ marginBottom: '1rem', color: '#b42318', background: '#fef3f2', border: '1px solid #fecdca', borderRadius: '8px', padding: '0.65rem 0.8rem' }}>
+            {commentVoteError}
+          </p>
+        )}
 
         {/* Step 6: Create Comment Form */}
         <div style={{ marginBottom: '2rem', background: '#f8fafc', padding: '1.5rem', borderRadius: '8px' }}>

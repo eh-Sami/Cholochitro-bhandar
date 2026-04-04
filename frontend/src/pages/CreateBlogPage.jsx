@@ -10,6 +10,7 @@ export default function CreateBlogPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [mentions, setMentions] = useState([]); // [{ type: 'media', id: 123, name: 'Inception' }]
+  const [submitError, setSubmitError] = useState('');
   const textareaRef = useRef(null);
   
   const { user: currentUser } = getStoredAuth();
@@ -76,9 +77,10 @@ export default function CreateBlogPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setSubmitError('');
 
     if (!currentUser || !token) {
-      alert('Please login to publish a blog post.');
+      setSubmitError('You must be logged in to create a post.');
       return;
     }
     
@@ -106,11 +108,11 @@ export default function CreateBlogPage() {
         // Rediect back to blogs feed
         navigate('/blogs');
       } else {
-        alert("Error creating blog: " + json.error);
+        setSubmitError(json.error || 'Failed to create blog.');
       }
     } catch (error) {
       console.error(error);
-      alert("Failed to submit block. Is the server running?");
+      setSubmitError('Failed to submit post. Is the server running?');
     }
   };
 
@@ -149,6 +151,22 @@ export default function CreateBlogPage() {
           style={{ width: '100%', padding: '1rem', border: '1px solid #d7dbe6', borderRadius: '8px', fontFamily: 'inherit', fontSize: '1rem', lineHeight: '1.6', resize: 'vertical' }}
         />
         
+        {submitError && (
+          <div
+            style={{
+              marginTop: '1rem',
+              padding: '0.75rem 0.9rem',
+              borderRadius: '10px',
+              border: '1px solid #fecaca',
+              background: '#fef2f2',
+              color: '#991b1b',
+              fontWeight: 600
+            }}
+          >
+            {submitError}
+          </div>
+        )}
+
         <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
           <button type="button" className="btn btn-ghost" onClick={() => navigate('/blogs')}>Cancel</button>
           <button type="submit" className="btn btn-primary">Publish Post</button>
