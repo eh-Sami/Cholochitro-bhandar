@@ -1,12 +1,5 @@
--- ─────────────────────────────────────────────
--- RATING RECALCULATION FUNCTIONS
--- Run ONCE after projectSchema.sql
--- ─────────────────────────────────────────────
-
--- ═══════════════════════════════════════════════
--- 1. Auto-Recalculate Movie Ratings
--- Fires on Review INSERT/UPDATE/DELETE for Movie reviews
--- ═══════════════════════════════════════════════
+-- Replace rating triggers with weighted-prior calculations.
+-- No schema changes required.
 
 CREATE OR REPLACE FUNCTION fn_refresh_movie_rating()
 RETURNS TRIGGER AS $$
@@ -17,7 +10,6 @@ DECLARE
     v_new_rating DECIMAL(3, 1);
     v_new_count INT;
 BEGIN
-    -- Determine which MediaID was affected
     IF TG_OP = 'DELETE' THEN
         v_media_id := OLD.MediaID;
     ELSIF TG_OP = 'UPDATE' THEN
@@ -26,7 +18,6 @@ BEGIN
         v_media_id := NEW.MediaID;
     END IF;
 
-    -- Only for movie reviews (MediaID is non-null for movies, NULL for episodes)
     IF v_media_id IS NULL THEN
         RETURN NULL;
     END IF;
@@ -58,7 +49,6 @@ BEGIN
     WHERE MediaID = v_media_id
       AND MediaType = 'Movie';
 
-    -- For UPDATE: if MediaID changed, also recalculate the old one
     IF TG_OP = 'UPDATE' AND OLD.MediaID IS NOT NULL AND OLD.MediaID <> NEW.MediaID THEN
         SELECT Rating, RatingCount
         INTO v_old_rating, v_old_count
@@ -78,15 +68,9 @@ BEGIN
         END IF;
     END IF;
 
-    RETURN NULL;  -- AFTER trigger: return value is ignored
+    RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
-
-
--- ═══════════════════════════════════════════════
--- 2. Episode → Season → Series Rating Cascade
--- Fires on Review INSERT/UPDATE/DELETE for Episode reviews
--- ═══════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION fn_cascade_episode_rating()
 RETURNS TRIGGER AS $$
@@ -109,7 +93,6 @@ BEGIN
         v_episode_no := NEW.EpisodeNo;
     END IF;
 
-    -- Skip if this isn't an episode review
     IF v_media_id IS NULL THEN
         RETURN NULL;
     END IF;
@@ -143,7 +126,6 @@ BEGIN
       AND e.SeasonNo  = v_season_no
       AND e.EpisodeNo = v_episode_no;
 
-    -- Step 2: Recalculate this Season's AvgRating (average of its episodes)
     UPDATE Season s
     SET AvgRating = sub.avg_r
     FROM (
@@ -153,10 +135,9 @@ BEGIN
     ) sub
     WHERE s.MediaID = v_media_id AND s.SeasonNo = v_season_no;
 
-    -- Step 3: Recalculate Series' overall Rating (average of season averages)
     UPDATE Media m
     SET Rating      = sub.avg_r,
-        RatingCount = COALESCE((SELECT COUNT(*)::int FROM Review WHERE EpisodeMediaID = v_media_id), 0)
+        RatingCount = COALESCE((SELECT SUM(RatingCount)::int FROM Episode WHERE MediaID = v_media_id), 0)
     FROM (
         SELECT ROUND(AVG(season_avg)::numeric, 1) AS avg_r
         FROM (
@@ -168,6 +149,6 @@ BEGIN
     ) sub
     WHERE m.MediaID = v_media_id AND m.MediaType = 'TVSeries';
 
-    RETURN NULL;  -- AFTER trigger: return value is ignored
+    RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;

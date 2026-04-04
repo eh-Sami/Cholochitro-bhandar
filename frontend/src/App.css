@@ -467,6 +467,47 @@
   font-size: 0.9rem;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 1.2rem;
+  padding: 1rem;
+  background: #f8fafb;
+  border-radius: 10px;
+  border: 1px solid #e3e7f0;
+}
+
+.pagination-btn {
+  border: 1px solid #d7dbe6;
+  background: #ffffff;
+  color: #2b3447;
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--accent-strong);
+  color: #ffffff;
+  border-color: var(--accent-strong);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pagination-info {
+  color: #6a7488;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0 0.5rem;
+}
+
 .panel {
   margin-top: 0.9rem;
 }
@@ -1484,17 +1525,61 @@
 /* Episode Ratings Grid Styles */
 .ratings-grid-container {
   overflow-x: auto;
-  padding: 0.5rem 0;
-  min-height: 100px;
-  background: #f9fafb;
-  border-radius: 8px;
   padding: 1rem;
+  min-height: 100px;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.ratings-legend {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+}
+
+.ratings-legend-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ratings-legend-items {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.ratings-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.ratings-legend-box {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.ratings-legend-item:hover .ratings-legend-box {
+  transform: scale(1.1);
 }
 
 .ratings-grid {
   display: table;
   border-collapse: separate;
-  border-spacing: 6px;
+  border-spacing: 8px;
 }
 
 .ratings-grid-header,
@@ -1504,50 +1589,92 @@
 
 .ratings-grid-cell {
   display: table-cell;
-  min-width: 55px;
-  width: 55px;
-  height: 48px;
+  min-width: 56px;
+  width: 56px;
+  height: 50px;
   text-align: center;
   vertical-align: middle;
-  border-radius: 6px;
-  font-size: 0.95rem;
-  font-weight: 600;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeInScale 0.4s ease-out forwards;
 }
 
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.ratings-grid-cell:nth-child(1) { animation-delay: 0ms; }
+.ratings-grid-cell:nth-child(2) { animation-delay: 20ms; }
+.ratings-grid-cell:nth-child(3) { animation-delay: 40ms; }
+.ratings-grid-cell:nth-child(4) { animation-delay: 60ms; }
+.ratings-grid-cell:nth-child(5) { animation-delay: 80ms; }
+.ratings-grid-cell:nth-child(6) { animation-delay: 100ms; }
+.ratings-grid-cell:nth-child(7) { animation-delay: 120ms; }
+.ratings-grid-cell:nth-child(8) { animation-delay: 140ms; }
+.ratings-grid-cell:nth-child(9) { animation-delay: 160ms; }
+.ratings-grid-cell:nth-child(10) { animation-delay: 180ms; }
+
 .ratings-grid-season-label {
-  min-width: 50px;
-  width: 50px;
+  min-width: 48px;
+  width: 48px;
   background: transparent;
   color: #374151;
-  font-weight: 700;
-  font-size: 1rem;
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+  animation: none !important;
 }
 
 .ratings-grid-ep-header {
   background: transparent;
   color: #6b7280;
-  font-weight: 600;
-  font-size: 0.875rem;
+  font-weight: 700;
+  font-size: 0.8rem;
   padding-bottom: 8px;
+  animation: none !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .ratings-grid-rating {
   cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-  color: #1f2937;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+.ratings-grid-rating::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
 }
 
 .ratings-grid-rating:hover {
-  transform: scale(1.15);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
-  z-index: 10;
-  position: relative;
+  transform: scale(1.2) translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18), 0 0 0 3px rgba(59, 130, 246, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  z-index: 20;
+}
+
+.ratings-grid-rating:active {
+  transform: scale(1.15) translateY(0);
 }
 
 .ratings-grid-empty {
   background: transparent;
+  animation: none !important;
+  box-shadow: none;
 }
 
 /* Season Actions */

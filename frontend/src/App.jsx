@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import MoviesPage from './pages/MoviesPage'
 import MovieDetailsPage from './pages/MovieDetailsPage'
 import PersonDetailsPage from './pages/PersonDetailsPage'
+import TopActorsPage from './pages/TopActorsPage'
 import SearchPage from './pages/SearchPage'
 import SignupPage from './pages/SignupPage'
 import TVShowsPage from './pages/TVShowsPage'
@@ -128,6 +129,7 @@ function App() {
         <Route path="/movies/:id" element={<MovieDetailsPage />} />
         <Route path="/celebrities" element={<PersonsPage />} />
         <Route path="/persons/:id" element={<PersonDetailsPage />} />
+        <Route path="/actors" element={<TopActorsPage />} />
         <Route path="/tvshows" element={<TVShowsPage />} />
         <Route path="/tvshows/:id" element={<TVShowDetailsPage />} />
         <Route path="/tvshows/:id/seasons" element={<TVShowSeasonsPage />} />
