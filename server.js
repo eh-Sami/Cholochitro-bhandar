@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const app = express();
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_me';
+const JWT_SECRET = process.env.JWT_SECRET || 'b7c9a1e4f8d2c6a9e3b5f7a1c2d4e6f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4';
 
 const formatUser = (row) => ({
     userId: row.userid,
