@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 const API_BASE = 'http://localhost:3000'
 const POSTER_BASE = 'https://image.tmdb.org/t/p/w342'
@@ -16,130 +16,123 @@ const getProfileUrl = (profilePath) => {
 }
 
 function SearchPage() {
-    const [query, setQuery] = useState('')
+    const [searchParams, setSearchParams] = useSearchParams()
+    
+    // State reflects current form input
+    const [query, setQuery] = useState(searchParams.get('q') || '')
+    const [searchType, setSearchType] = useState(searchParams.get('type') || 'all') // 'all', 'movies', 'tvshows', 'people'
+    
     const [results, setResults] = useState([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
-    const [searchType, setSearchType] = useState('all') // 'all', 'movies', 'tvshows', 'people'
 
-    const handleSearch = async (event) => {
-        event.preventDefault()
-        const trimmed = query.trim()
-        if (!trimmed) {
-            setError('Please enter a search term')
+    // URL params drive the API fetch
+    useEffect(() => {
+        const urlQ = searchParams.get('q')
+        const urlType = searchParams.get('type') || 'all'
+        
+        // Sync state from URL
+        setQuery(urlQ || '')
+        setSearchType(urlType)
+
+        if (!urlQ?.trim()) {
             setResults([])
             return
         }
 
-        setLoading(true)
-        setError('')
+        const fetchResults = async () => {
+            setLoading(true)
+            setError('')
 
-        try {
-            let endpoint = `${API_BASE}/search?q=${encodeURIComponent(trimmed)}&page=1&limit=12`
-            
-            if (searchType === 'people') {
-                endpoint = `${API_BASE}/persons/search?q=${encodeURIComponent(trimmed)}&page=1&limit=12`
-            }
+            try {
+                let fetchedResults = []
+                const searchQ = encodeURIComponent(urlQ.trim())
+                
+                if (urlType === 'people') {
+                    const res = await fetch(`${API_BASE}/persons/search?q=${searchQ}&page=1&limit=12`)
+                    if(res.ok) fetchedResults = (await res.json()).data || []
+                } else if (urlType === 'movies' || urlType === 'tvshows') {
+                    const res = await fetch(`${API_BASE}/search?q=${searchQ}&page=1&limit=12`)
+                    if(res.ok) {
+                        let data = (await res.json()).data || []
+                        if (urlType === 'movies') data = data.filter(r => r.mediatype === 'Movie')
+                        if (urlType === 'tvshows') data = data.filter(r => r.mediatype === 'TVSeries')
+                        fetchedResults = data
+                    }
+                } else {
+                    // urlType === 'all'
+                    const [resMedia, resPeople] = await Promise.all([
+                        fetch(`${API_BASE}/search?q=${searchQ}&page=1&limit=12`),
+                        fetch(`${API_BASE}/persons/search?q=${searchQ}&page=1&limit=12`)
+                    ])
+                    let mediaData = [], peopleData = []
+                    if(resMedia.ok) mediaData = (await resMedia.json()).data || []
+                    if(resPeople.ok) peopleData = (await resPeople.json()).data || []
+                    fetchedResults = [...mediaData, ...peopleData]
+                }
 
-            const response = await fetch(endpoint)
-            if (!response.ok) {
-                throw new Error('Search failed')
+                setResults(fetchedResults)
+            } catch (err) {
+                setError(err.message || 'Something went wrong')
+            } finally {
+                setLoading(false)
             }
-            const data = await response.json()
-            setResults(data.data || [])
-        } catch (err) {
-            setError(err.message || 'Something went wrong')
-        } finally {
-            setLoading(false)
+        }
+
+        fetchResults()
+    }, [searchParams])
+
+    const handleSearch = (event) => {
+        event.preventDefault()
+        if (query.trim()) {
+            setSearchParams({ q: query, type: searchType })
         }
     }
 
     return (
         <main className="page">
-            <h2>Search</h2>
-            <form className="search-bar" onSubmit={handleSearch}>
-                <input
-                    type="text"
-                    placeholder={
-                        searchType === 'people'
-                            ? 'Search actors, directors, crew...'
-                            : 'Search movies or TV shows...'
-                    }
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                />
-                <button type="submit">Search</button>
-            </form>
-
-            <div className="search-filters">
-                <button
-                    className={`filter-btn ${searchType === 'all' ? 'active' : ''}`}
-                    onClick={() => setSearchType('all')}
-                >
-                    All
-                </button>
-                <button
-                    className={`filter-btn ${searchType === 'movies' ? 'active' : ''}`}
-                    onClick={() => setSearchType('movies')}
-                >
-                    Movies
-                </button>
-                <button
-                    className={`filter-btn ${searchType === 'tvshows' ? 'active' : ''}`}
-                    onClick={() => setSearchType('tvshows')}
-                >
-                    TV Shows
-                </button>
-                <button
-                    className={`filter-btn ${searchType === 'people' ? 'active' : ''}`}
-                    onClick={() => setSearchType('people')}
-                >
-                    People
-                </button>
-            </div>
+            <h2 style={{ marginBottom: '1.5rem' }}>Search Results</h2>
 
             {loading && <p className="status">Searching...</p>}
             {error && <p className="status error">{error}</p>}
 
             {!loading && !error && results.length > 0 && (
-                <div className={searchType === 'people' ? 'people-grid' : 'grid'}>
-                    {searchType === 'people' ? (
-                        // Person search results
-                        results.map((person) => (
-                            <Link
-                                className="person-card-link"
-                                to={`/persons/${person.personid}`}
-                                key={person.personid}
-                            >
-                                <article className="person-card">
-                                    {getProfileUrl(person.picture) ? (
-                                        <img
-                                            className="person-avatar"
-                                            src={getProfileUrl(person.picture)}
-                                            alt={person.fullname}
-                                            loading="lazy"
-                                        />
-                                    ) : (
-                                        <div className="person-avatar placeholder">No photo</div>
-                                    )}
-                                    <div className="person-card-body">
-                                        <h3>{person.fullname}</h3>
-                                        <p className="title-count">
-                                            {person.title_count || 0} {person.title_count === 1 ? 'title' : 'titles'}
-                                        </p>
-                                    </div>
-                                </article>
-                            </Link>
-                        ))
-                    ) : (
-                        // Movie/TV show search results
-                        results.map((item) => {
+                <div className="grid">
+                    {results.map((item, index) => {
+                        if (item.fullname !== undefined) {
+                            return (
+                                <Link
+                                    className="card-link"
+                                    to={`/persons/${item.personid}`}
+                                    key={`person-${item.personid}-${index}`}
+                                >
+                                    <article className="card">
+                                        {getProfileUrl(item.picture) ? (
+                                            <img
+                                                className="poster"
+                                                src={getProfileUrl(item.picture)}
+                                                alt={item.fullname}
+                                                loading="lazy"
+                                            />
+                                        ) : (
+                                            <div className="poster placeholder">No photo</div>
+                                        )}
+                                        <div className="card-body">
+                                            <h3>{item.fullname}</h3>
+                                            <div className="meta">
+                                                <span>Celebrity</span>
+                                            </div>
+                                        </div>
+                                    </article>
+                                </Link>
+                            )
+                        } else {
                             const basePath = item.mediatype === 'TVSeries' ? '/tvshows' : '/movies'
                             return (
                                 <Link
                                     className="card-link"
                                     to={`${basePath}/${item.mediaid}`}
-                                    key={`${item.mediatype}-${item.mediaid}`}
+                                    key={`media-${item.mediaid}-${index}`}
                                 >
                                     <article className="card">
                                         {getPosterUrl(item.poster) ? (
@@ -162,8 +155,8 @@ function SearchPage() {
                                     </article>
                                 </Link>
                             )
-                        })
-                    )}
+                        }
+                    })}
                 </div>
             )}
 
