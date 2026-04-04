@@ -1,9 +1,3 @@
--- ─────────────────────────────────────────────
--- IMDB Schema v2 - Using TMDB IDs directly
--- Changed SERIAL to INT for TMDB-sourced tables
--- ─────────────────────────────────────────────
--- 1. ENUMS & INDEPENDENT ENTITIES
--- ─────────────────────────────────────────────
 -- Enum for the Superclass discriminator
 CREATE TYPE media_type_enum AS ENUM ('Movie', 'TVSeries');
 -- Users table - KEEP SERIAL (user-generated, not from TMDB)

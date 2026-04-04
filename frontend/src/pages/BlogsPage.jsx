@@ -71,15 +71,19 @@ export default function BlogsPage() {
   };
 
   // Parses raw text to convert @[Name](type:id) into clickable Links
-  const renderContentWithMentions = (text) => {
+  const renderContentWithMentions = (text, mentions = []) => {
     if (!text) return null;
     const regex = /@\[(.*?)\]\((media|person|list):(\d+)\)/g;
     const parts = [];
     let lastIndex = 0;
     let match;
+    const mediaMentions = new Map(
+      mentions
+        .filter((mention) => mention.type === 'media')
+        .map((mention) => [String(mention.id), mention])
+    );
 
     while ((match = regex.exec(text)) !== null) {
-      // Add text before the match
       if (match.index > lastIndex) {
         parts.push(text.substring(lastIndex, match.index));
       }
@@ -89,9 +93,14 @@ export default function BlogsPage() {
       const id = match[3];
 
       let linkPath = '/';
-      if (type === 'media') linkPath = `/movies/${id}`; // Or /tvshows/
-      else if (type === 'person') linkPath = `/persons/${id}`;
-      else if (type === 'list') linkPath = `/lists/${id}`; // Assuming lists endpoint
+      if (type === 'media') {
+        const mediaType = mediaMentions.get(id)?.mediaType;
+        linkPath = mediaType === 'TVSeries' ? `/tvshows/${id}` : `/movies/${id}`;
+      } else if (type === 'person') {
+        linkPath = `/persons/${id}`;
+      } else if (type === 'list') {
+        linkPath = `/lists/${id}`;
+      }
 
       parts.push(
         <Link key={match.index} to={linkPath} className="mention-link">
@@ -149,7 +158,7 @@ export default function BlogsPage() {
             </div>
             
             <p className="blog-preview">
-              {renderContentWithMentions(blog.contentpreview)}
+              {renderContentWithMentions(blog.contentpreview, blog.mentions)}
               {(blog.contentpreview?.length || 0) >= 200 && '...'}
             </p>
             

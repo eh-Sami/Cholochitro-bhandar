@@ -2054,6 +2054,26 @@ app.get('/blogs', async (req, res) => {
                     b.EditedAt,
                     b.UserID,
                     u.FullName AS AuthorName,
+                    COALESCE((
+                        SELECT json_agg(
+                            json_build_object(
+                                'type', CASE
+                                    WHEN bm.MediaID IS NOT NULL THEN 'media'
+                                    WHEN bm.PersonID IS NOT NULL THEN 'person'
+                                    ELSE 'list'
+                                END,
+                                'id', COALESCE(bm.MediaID, bm.PersonID, bm.ListID),
+                                'title', COALESCE(m.Title, p.FullName, ul.ListName),
+                                'mediaType', m.MediaType
+                            )
+                            ORDER BY bm.MentionID
+                        )
+                        FROM Blog_Mentions bm
+                        LEFT JOIN Media m ON bm.MediaID = m.MediaID
+                        LEFT JOIN Person p ON bm.PersonID = p.PersonID
+                        LEFT JOIN User_List ul ON bm.ListID = ul.ListID
+                        WHERE bm.BlogID = b.BlogID
+                    ), '[]'::json) AS Mentions,
                     (SELECT COUNT(*) FROM Comments WHERE BlogID = b.BlogID) AS CommentCount
                 FROM Blog b
                 JOIN Users u ON b.UserID = u.UserID
@@ -2139,6 +2159,7 @@ app.get('/blogs/:id', async (req, res) => {
                     bm.PersonID,
                     bm.ListID,
                     m.Title AS MediaTitle,
+                    m.MediaType,
                     p.FullName AS PersonName,
                     ul.ListName
                 FROM Blog_Mentions bm
@@ -2160,7 +2181,12 @@ app.get('/blogs/:id', async (req, res) => {
 
         const mentions = mentionResult.rows.map((row) => {
             if (row.mediaid) {
-                return { type: 'media', id: row.mediaid, title: row.mediatitle || 'Media' };
+                return {
+                    type: 'media',
+                    id: row.mediaid,
+                    title: row.mediatitle || 'Media',
+                    mediaType: row.mediatype || null
+                };
             }
             if (row.personid) {
                 return { type: 'person', id: row.personid, title: row.personname || 'Person' };
@@ -2195,6 +2221,8 @@ app.get('/blogs/:id', async (req, res) => {
 });
 
 app.post('/blogs', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    let transactionStarted = false;
     try {
         const { blogTitle, content, mentions } = req.body;
 
@@ -2205,7 +2233,10 @@ app.post('/blogs', requireAuth, async (req, res) => {
             });
         }
 
-        const result = await pool.query(
+        await client.query('BEGIN');
+        transactionStarted = true;
+
+        const result = await client.query(
             `
             INSERT INTO Blog (UserID, BlogTitle, Content)
             VALUES ($1, $2, $3)
@@ -2223,7 +2254,7 @@ app.post('/blogs', requireAuth, async (req, res) => {
                 if (seen.has(key)) continue;
                 seen.add(key);
 
-                await pool.query(
+                await client.query(
                     `
                     INSERT INTO Blog_Mentions (BlogID, MediaID, PersonID, ListID)
                     VALUES ($1, $2, $3, $4)
@@ -2239,11 +2270,17 @@ app.post('/blogs', requireAuth, async (req, res) => {
             }
         }
 
+        await client.query('COMMIT');
+        transactionStarted = false;
+
         return res.status(201).json({
             success: true,
             data: result.rows[0]
         });
     } catch (error) {
+        if (transactionStarted) {
+            await client.query('ROLLBACK');
+        }
         if (error.code === 'P0001') {
             return res.status(400).json({
                 success: false,
@@ -2255,17 +2292,26 @@ app.post('/blogs', requireAuth, async (req, res) => {
             success: false,
             error: 'Failed to create blog'
         });
+    } finally {
+        client.release();
     }
 });
 
 app.put('/blogs/:id', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    let transactionStarted = false;
     try {
         const { id } = req.params;
         const { blogTitle, content, mentions } = req.body;
 
-        const blogCheck = await pool.query('SELECT UserID FROM Blog WHERE BlogID = $1', [id]);
+        await client.query('BEGIN');
+        transactionStarted = true;
+
+        const blogCheck = await client.query('SELECT UserID FROM Blog WHERE BlogID = $1', [id]);
 
         if (blogCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
             return res.status(404).json({
                 success: false,
                 error: 'Blog not found'
@@ -2273,13 +2319,15 @@ app.put('/blogs/:id', requireAuth, async (req, res) => {
         }
 
         if (Number(blogCheck.rows[0].userid) !== Number(req.user.userId)) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
             return res.status(403).json({
                 success: false,
                 error: 'You can only edit your own blogs'
             });
         }
 
-        const result = await pool.query(
+        const result = await client.query(
             `
             UPDATE Blog
             SET BlogTitle = COALESCE($1, BlogTitle),
@@ -2291,7 +2339,7 @@ app.put('/blogs/:id', requireAuth, async (req, res) => {
         );
 
         if (Array.isArray(mentions)) {
-            await pool.query('DELETE FROM Blog_Mentions WHERE BlogID = $1', [id]);
+            await client.query('DELETE FROM Blog_Mentions WHERE BlogID = $1', [id]);
 
             const seen = new Set();
             for (const mention of mentions) {
@@ -2299,7 +2347,7 @@ app.put('/blogs/:id', requireAuth, async (req, res) => {
                 if (seen.has(key)) continue;
                 seen.add(key);
 
-                await pool.query(
+                await client.query(
                     `
                     INSERT INTO Blog_Mentions (BlogID, MediaID, PersonID, ListID)
                     VALUES ($1, $2, $3, $4)
@@ -2315,11 +2363,17 @@ app.put('/blogs/:id', requireAuth, async (req, res) => {
             }
         }
 
+        await client.query('COMMIT');
+        transactionStarted = false;
+
         return res.json({
             success: true,
             data: result.rows[0]
         });
     } catch (error) {
+        if (transactionStarted) {
+            await client.query('ROLLBACK');
+        }
         if (error.code === 'P0001') {
             return res.status(400).json({
                 success: false,
@@ -2331,6 +2385,8 @@ app.put('/blogs/:id', requireAuth, async (req, res) => {
             success: false,
             error: 'Failed to update blog'
         });
+    } finally {
+        client.release();
     }
 });
 
@@ -2478,6 +2534,7 @@ app.get('/blogs/:id/comments', async (req, res) => {
                     cm.PersonID,
                     cm.ListID,
                     m.Title AS MediaTitle,
+                    m.MediaType,
                     p.FullName AS PersonName,
                     ul.ListName
                 FROM Comment_Mentions cm
@@ -2499,7 +2556,12 @@ app.get('/blogs/:id/comments', async (req, res) => {
                 ...comment,
                 mentions: commentMentions.map((mention) => {
                     if (mention.mediaid) {
-                        return { type: 'media', id: mention.mediaid, title: mention.mediatitle || 'Media' };
+                        return {
+                            type: 'media',
+                            id: mention.mediaid,
+                            title: mention.mediatitle || 'Media',
+                            mediaType: mention.mediatype || null
+                        };
                     }
                     if (mention.personid) {
                         return { type: 'person', id: mention.personid, title: mention.personname || 'Person' };
@@ -2543,6 +2605,8 @@ app.get('/blogs/:id/comments', async (req, res) => {
 });
 
 app.post('/blogs/:id/comments', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    let transactionStarted = false;
     try {
         const { id } = req.params;
         const { commentText, replyToCommentId, mentions } = req.body;
@@ -2554,15 +2618,20 @@ app.post('/blogs/:id/comments', requireAuth, async (req, res) => {
             });
         }
 
-        const blogCheck = await pool.query('SELECT BlogID FROM Blog WHERE BlogID = $1', [id]);
+        await client.query('BEGIN');
+        transactionStarted = true;
+
+        const blogCheck = await client.query('SELECT BlogID FROM Blog WHERE BlogID = $1', [id]);
         if (blogCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
             return res.status(404).json({
                 success: false,
                 error: 'Blog not found'
             });
         }
 
-        const result = await pool.query(
+        const result = await client.query(
             `
             INSERT INTO Comments (UserID, BlogID, ReplyToCommentID, CommentText)
             VALUES ($1, $2, $3, $4)
@@ -2580,7 +2649,7 @@ app.post('/blogs/:id/comments', requireAuth, async (req, res) => {
                 if (seen.has(key)) continue;
                 seen.add(key);
 
-                await pool.query(
+                await client.query(
                     `
                     INSERT INTO Comment_Mentions (CommentID, MediaID, PersonID, ListID)
                     VALUES ($1, $2, $3, $4)
@@ -2596,11 +2665,17 @@ app.post('/blogs/:id/comments', requireAuth, async (req, res) => {
             }
         }
 
+        await client.query('COMMIT');
+        transactionStarted = false;
+
         return res.status(201).json({
             success: true,
             data: result.rows[0]
         });
     } catch (error) {
+        if (transactionStarted) {
+            await client.query('ROLLBACK');
+        }
         if (error.code === 'P0001') {
             return res.status(400).json({
                 success: false,
@@ -2612,10 +2687,14 @@ app.post('/blogs/:id/comments', requireAuth, async (req, res) => {
             success: false,
             error: 'Failed to create comment'
         });
+    } finally {
+        client.release();
     }
 });
 
 app.put('/comments/:id', requireAuth, async (req, res) => {
+    const client = await pool.connect();
+    let transactionStarted = false;
     try {
         const { id } = req.params;
         const { commentText, mentions } = req.body;
@@ -2627,8 +2706,13 @@ app.put('/comments/:id', requireAuth, async (req, res) => {
             });
         }
 
-        const commentCheck = await pool.query('SELECT UserID FROM Comments WHERE CommentID = $1', [id]);
+        await client.query('BEGIN');
+        transactionStarted = true;
+
+        const commentCheck = await client.query('SELECT UserID FROM Comments WHERE CommentID = $1', [id]);
         if (commentCheck.rows.length === 0) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
             return res.status(404).json({
                 success: false,
                 error: 'Comment not found'
@@ -2636,13 +2720,15 @@ app.put('/comments/:id', requireAuth, async (req, res) => {
         }
 
         if (Number(commentCheck.rows[0].userid) !== Number(req.user.userId)) {
+            await client.query('ROLLBACK');
+            transactionStarted = false;
             return res.status(403).json({
                 success: false,
                 error: 'You can only edit your own comments'
             });
         }
 
-        const result = await pool.query(
+        const result = await client.query(
             `
             UPDATE Comments
             SET CommentText = $1
@@ -2653,7 +2739,7 @@ app.put('/comments/:id', requireAuth, async (req, res) => {
         );
 
         if (Array.isArray(mentions)) {
-            await pool.query('DELETE FROM Comment_Mentions WHERE CommentID = $1', [id]);
+            await client.query('DELETE FROM Comment_Mentions WHERE CommentID = $1', [id]);
 
             const seen = new Set();
             for (const mention of mentions) {
@@ -2661,7 +2747,7 @@ app.put('/comments/:id', requireAuth, async (req, res) => {
                 if (seen.has(key)) continue;
                 seen.add(key);
 
-                await pool.query(
+                await client.query(
                     `
                     INSERT INTO Comment_Mentions (CommentID, MediaID, PersonID, ListID)
                     VALUES ($1, $2, $3, $4)
@@ -2677,11 +2763,17 @@ app.put('/comments/:id', requireAuth, async (req, res) => {
             }
         }
 
+        await client.query('COMMIT');
+        transactionStarted = false;
+
         return res.json({
             success: true,
             data: result.rows[0]
         });
     } catch (error) {
+        if (transactionStarted) {
+            await client.query('ROLLBACK');
+        }
         if (error.code === 'P0001') {
             return res.status(400).json({
                 success: false,
@@ -2693,6 +2785,8 @@ app.put('/comments/:id', requireAuth, async (req, res) => {
             success: false,
             error: 'Failed to update comment'
         });
+    } finally {
+        client.release();
     }
 });
 

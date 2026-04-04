@@ -191,7 +191,7 @@ const CommentNode = ({ comment, currentUser, token, handleEntityVote, renderCont
           </div>
         ) : (
           <div style={{ color: '#4a566e', marginBottom: '1rem', lineHeight: '1.5', whiteSpace: 'pre-wrap' }}>
-            {renderContentWithMentions(comment.commenttext)}
+            {renderContentWithMentions(comment.commenttext, comment.mentions)}
           </div>
         )}
 
@@ -441,12 +441,17 @@ export default function BlogDetailPage() {
   };
 
   // Parses raw text to convert @[Name](type:id) into clickable Links
-  const renderContentWithMentions = (text) => {
+  const renderContentWithMentions = (text, mentions = []) => {
     if (!text) return null;
     const regex = /@\[(.*?)\]\((media|person|list):(\d+)\)/g;
     const parts = [];
     let lastIndex = 0;
     let match;
+    const mediaMentions = new Map(
+      mentions
+        .filter((mention) => mention.type === 'media')
+        .map((mention) => [String(mention.id), mention])
+    );
 
     while ((match = regex.exec(text)) !== null) {
       if (match.index > lastIndex) {
@@ -458,9 +463,14 @@ export default function BlogDetailPage() {
       const refId = match[3];
 
       let linkPath = '/';
-      if (type === 'media') linkPath = `/movies/${refId}`;
-      else if (type === 'person') linkPath = `/persons/${refId}`;
-      else if (type === 'list') linkPath = `/lists/${refId}`;
+      if (type === 'media') {
+        const mediaType = mediaMentions.get(refId)?.mediaType;
+        linkPath = mediaType === 'TVSeries' ? `/tvshows/${refId}` : `/movies/${refId}`;
+      } else if (type === 'person') {
+        linkPath = `/persons/${refId}`;
+      } else if (type === 'list') {
+        linkPath = `/lists/${refId}`;
+      }
 
       parts.push(
         <Link key={match.index} to={linkPath} className="mention-link">
@@ -525,7 +535,7 @@ export default function BlogDetailPage() {
         </div>
 
         <div style={{ fontSize: '1.1rem', lineHeight: '1.8', color: '#334155', marginBottom: '2rem', whiteSpace: 'pre-wrap' }}>
-          {renderContentWithMentions(blog.content)}
+          {renderContentWithMentions(blog.content, blog.mentions)}
         </div>
 
         {/* Voting Actions */}
