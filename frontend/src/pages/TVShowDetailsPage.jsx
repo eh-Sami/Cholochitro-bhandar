@@ -41,6 +41,57 @@ const getYouTubeEmbedUrl = (trailerUrl) => {
     }
 }
 
+const hexToRgb = (hex) => {
+    const normalized = hex.replace('#', '')
+    const value = parseInt(normalized, 16)
+    return {
+        r: (value >> 16) & 255,
+        g: (value >> 8) & 255,
+        b: value & 255
+    }
+}
+
+const rgbToHex = ({ r, g, b }) => {
+    const toHex = (channel) => Math.round(channel).toString(16).padStart(2, '0')
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+const interpolateRgb = (start, end, factor) => ({
+    r: start.r + (end.r - start.r) * factor,
+    g: start.g + (end.g - start.g) * factor,
+    b: start.b + (end.b - start.b) * factor
+})
+
+const getTextColorForBackground = ({ r, g, b }) => {
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+    return luminance < 0.52 ? '#ffffff' : '#111827'
+}
+
+const getColorForRating = (rating) => {
+    const minRating = 7.5
+    const midRating = 8.7
+    const maxRating = 9.5
+    const lowColor = hexToRgb('#f97316')
+    const midColor = hexToRgb('#cbd5f5')
+    const highColor = hexToRgb('#1e3a8a')
+
+    const clampedRating = Math.max(minRating, Math.min(maxRating, rating))
+
+    let rgb
+    if (clampedRating <= midRating) {
+        const factor = (clampedRating - minRating) / (midRating - minRating)
+        rgb = interpolateRgb(lowColor, midColor, factor)
+    } else {
+        const factor = (clampedRating - midRating) / (maxRating - midRating)
+        rgb = interpolateRgb(midColor, highColor, factor)
+    }
+
+    return {
+        bg: rgbToHex(rgb),
+        text: getTextColorForBackground(rgb)
+    }
+}
+
 function TVShowDetailsPage() {
     const { id } = useParams()
     const { user } = getStoredAuth()
@@ -183,9 +234,6 @@ function TVShowDetailsPage() {
         || null
     const globalSeasonRating = selectedSeason?.avgrating !== null && selectedSeason?.avgrating !== undefined
         ? Number(selectedSeason.avgrating).toFixed(1)
-        : 'N/A'
-    const websiteSeasonRating = selectedSeason?.websiteSeasonRating !== null && selectedSeason?.websiteSeasonRating !== undefined
-        ? Number(selectedSeason.websiteSeasonRating).toFixed(1)
         : 'N/A'
 
     return (
@@ -342,7 +390,6 @@ function TVShowDetailsPage() {
                                                     <span className="season-duration">~{avgDuration} min/ep</span>
                                                 )}
                                                 <span className="season-rating">Global ⭐ {globalSeasonRating}</span>
-                                                <span className="season-rating">Website ⭐ {websiteSeasonRating}</span>
                                             </div>
                                         </div>
 
@@ -399,6 +446,26 @@ function TVShowDetailsPage() {
                     {showRatingsModal && show.seasons?.some(s => s.episodes?.length > 0) && (
                         <div className="detail-section">
                             <h3>Episode Ratings</h3>
+                            
+                            {/* Color Legend */}
+                            <div className="ratings-legend">
+                                <div className="ratings-legend-title">Rating Scale</div>
+                                <div className="ratings-legend-items">
+                                    <div className="ratings-legend-item">
+                                        <div className="ratings-legend-box" style={{ backgroundColor: getColorForRating(7.5).bg }}></div>
+                                        <span>Low 7.5-8.0</span>
+                                    </div>
+                                    <div className="ratings-legend-item">
+                                        <div className="ratings-legend-box" style={{ backgroundColor: getColorForRating(8.35).bg }}></div>
+                                        <span>Medium 8.0-8.7</span>
+                                    </div>
+                                    <div className="ratings-legend-item">
+                                        <div className="ratings-legend-box" style={{ backgroundColor: getColorForRating(9.5).bg }}></div>
+                                        <span>High 8.7-9.5</span>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="ratings-grid-container">
                                 {(() => {
                                     // Filter seasons that have episodes
@@ -434,14 +501,17 @@ function TVShowDetailsPage() {
                                                             return <div key={season.seasonno} className="ratings-grid-cell ratings-grid-empty"></div>
                                                         }
                                                         const rating = parseFloat(episode.avgrating) || 0
-                                                        const bgColor = rating >= 9 ? '#f59e0b' : rating >= 7 ? '#fbbf24' : rating >= 5 ? '#fcd34d' : '#fef3c7'
+                                                        const { bg: bgColor, text: textColor } = getColorForRating(rating)
                                                         
                                                         return (
                                                             <div 
                                                                 key={season.seasonno} 
                                                                 className="ratings-grid-cell ratings-grid-rating"
-                                                                style={{ backgroundColor: bgColor }}
-                                                                title={`S${season.seasonno}E${episode.episodeno}: ${episode.episodetitle || 'Episode ' + episode.episodeno}`}
+                                                                style={{ 
+                                                                    backgroundColor: bgColor,
+                                                                    color: textColor
+                                                                }}
+                                                                title={`S${season.seasonno}E${episode.episodeno}: ${episode.episodetitle || 'Episode ' + episode.episodeno} - ${rating.toFixed(1)}`}
                                                             >
                                                                 {rating > 0 ? rating.toFixed(1) : '—'}
                                                             </div>
@@ -453,68 +523,6 @@ function TVShowDetailsPage() {
                                     )
                                 })()}
                             </div>
-
-                            {selectedSeason && (() => {
-                                const seasonTrailerUrl = getYouTubeEmbedUrl(selectedSeason.trailerlink)
-                                const episodeCount = selectedSeason.episodes?.length || selectedSeason.episodecount || 0
-                                const totalDuration = selectedSeason.episodes?.reduce((sum, ep) => sum + (ep.duration || 0), 0) || 0
-                                const avgDuration = episodeCount > 0 ? Math.round(totalDuration / episodeCount) : 0
-
-                                return (
-                                    <div className="season-panel">
-                                        <div className="season-panel-header">
-                                            <h4 className="season-panel-title">
-                                                Season {selectedSeason.seasonno}{selectedSeason.seasontitle ? `: ${selectedSeason.seasontitle}` : ''}
-                                            </h4>
-                                            <div className="season-stats">
-                                                {episodeCount > 0 && (
-                                                    <span className="season-episodes">{episodeCount} Episodes</span>
-                                                )}
-                                                {avgDuration > 0 && (
-                                                    <span className="season-duration">~{avgDuration} min/ep</span>
-                                                )}
-                                                <span className="season-rating">Global ⭐ {globalSeasonRating}</span>
-                                                <span className="season-rating">Website ⭐ {websiteSeasonRating}</span>
-                                            </div>
-                                        </div>
-
-                                        {selectedSeason.releasedate && (
-                                            <p className="season-meta">Released: {new Date(selectedSeason.releasedate).toLocaleDateString()}</p>
-                                        )}
-
-                                        {selectedSeason.description && (
-                                            <p className="season-desc">{selectedSeason.description}</p>
-                                        )}
-
-                                        {selectedSeason.trailerlink && (
-                                            <div className="season-trailer">
-                                                <a
-                                                    className="btn btn-secondary btn-sm"
-                                                    href={selectedSeason.trailerlink}
-                                                    target="_blank"
-                                                    rel="noreferrer"
-                                                >
-                                                    Watch Season Trailer
-                                                </a>
-                                                {seasonTrailerUrl && (
-                                                    <div className="trailer-frame-wrap">
-                                                        <iframe
-                                                            className="trailer-frame"
-                                                            src={seasonTrailerUrl}
-                                                            title={`Season ${selectedSeason.seasonno} trailer`}
-                                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                            allowFullScreen
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
-                                            View episodes
-                                        </Link>
-                                    </div>
-                                )
-                            })()}
                         </div>
                     )}
 
