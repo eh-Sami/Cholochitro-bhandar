@@ -497,17 +497,17 @@ export default function BlogDetailPage() {
   if (!blog) return <div className="page"><p>Blog not found.</p><Link to="/blogs" className="btn btn-secondary">Back to Blogs</Link></div>;
 
   return (
-    <div className="page blogs-page" style={{ maxWidth: '800px', margin: '2rem auto' }}>
+    <div className="page blogs-page">
       
-      <button className="btn btn-ghost" onClick={() => navigate('/blogs')} style={{ marginBottom: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+      <button className="btn btn-ghost hero-back" onClick={() => navigate('/blogs')} style={{ marginTop: '0', marginBottom: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', position: 'static', color: '#6a7488' }}>
         <ArrowLeft size={16} /> Back to Blogs
       </button>
 
-      <div style={{ background: 'white', border: '1px solid #e2e6f0', borderRadius: '12px', padding: '2rem', marginBottom: '2rem' }}>
+      <div style={{ background: 'white', border: 'none', borderRadius: '24px', padding: '3rem', marginBottom: '3rem', boxShadow: '0 20px 40px rgba(31, 38, 53, 0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <h1>
+          <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '3rem', fontWeight: 800, color: '#1f2635', lineHeight: '1.2', margin: '0 0 1rem 0' }}>
             {blog.blogtitle}
-            {blog.editedat && blog.editedat !== blog.postdate && <span style={{ fontSize: '0.9rem', color: '#8a94a6', fontStyle: 'italic', fontWeight: 'normal', marginLeft: '1rem' }}>(edited)</span>}
+            {blog.editedat && blog.editedat !== blog.postdate && <span style={{ fontSize: '1rem', color: '#8a94a6', fontStyle: 'italic', fontWeight: 'normal', marginLeft: '1rem' }}>(edited)</span>}
           </h1>
           {currentUser && Number(currentUser.userId) === Number(blog.userid) && (
             <div style={{ position: 'relative' }}>
@@ -528,8 +528,8 @@ export default function BlogDetailPage() {
           )}
         </div>
         
-        <div style={{ display: 'flex', gap: '1rem', color: '#6a7488', fontSize: '0.9rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #edf0f6' }}>
-          <span>Written by <strong>{blog.authorname}</strong></span>
+        <div style={{ display: 'flex', gap: '1rem', color: '#6a7488', fontSize: '1.1rem', marginBottom: '2.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid #edf0f6' }}>
+          <span>Written by <strong style={{ color: '#1f2635' }}>{blog.authorname}</strong></span>
           <span>•</span>
           <span>{new Date(blog.postdate).toLocaleDateString()}</span>
         </div>
@@ -550,9 +550,9 @@ export default function BlogDetailPage() {
       </div>
 
       {/* Comments Section */}
-      <div style={{ background: 'white', border: '1px solid #e2e6f0', borderRadius: '12px', padding: '2rem' }}>
-        <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-          <MessageSquare size={24} /> {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
+      <div style={{ background: 'white', border: 'none', borderRadius: '24px', padding: '3rem', boxShadow: '0 20px 40px rgba(31, 38, 53, 0.05)' }}>
+        <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '2rem', fontFamily: 'Outfit, sans-serif', fontSize: '2rem', color: '#1f2635' }}>
+          <MessageSquare size={28} color="var(--accent-strong)" /> {comments.length} {comments.length === 1 ? 'Comment' : 'Comments'}
         </h2>
 
         {/* Step 6: Create Comment Form */}

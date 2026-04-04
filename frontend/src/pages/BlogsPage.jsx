@@ -128,17 +128,30 @@ export default function BlogsPage() {
 
   return (
     <div className="page blogs-page">
-      <div className="blogs-header">
-        <h1>Community Blogs</h1>
-        <div className="blogs-controls">
-          <select 
-            className="sort-select" 
-            value={sort} 
-            onChange={(e) => { setSort(e.target.value); setPage(1); }}
-          >
-            <option value="newest">Newest First</option>
-            <option value="popular">Most Popular</option>
-          </select>
+      <div className="blogs-header" style={{
+          background: 'linear-gradient(135deg, #1f2635, #3b4255)', 
+          padding: '3rem', 
+          borderRadius: '20px', 
+          color: 'white',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+          marginBottom: '3rem'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+          <div>
+            <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '3rem', color: 'white', margin: 0, textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>Community Blogs</h1>
+            <p style={{ marginTop: '0.5rem', color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Read, write, and discuss with fellow movie buffs.</p>
+          </div>
+          <div className="blogs-controls">
+            <select 
+              className="sleek-dropdown" 
+              value={sort} 
+              onChange={(e) => { setSort(e.target.value); setPage(1); }}
+              style={{ padding: '0.8rem 1.5rem', borderRadius: '50px', background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}
+            >
+              <option value="newest" style={{ color: "black" }}>Newest First</option>
+              <option value="popular" style={{ color: "black" }}>Most Popular</option>
+            </select>
+          </div>
         </div>
       </div>
 

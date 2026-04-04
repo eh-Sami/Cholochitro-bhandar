@@ -101,13 +101,21 @@ function ListsPage() {
 
     return (
         <main className="page lists-page">
-            <section className="lists-hero">
-                <div>
-                    <h2>User Lists</h2>
-                    <p>Build your own collections and discover public lists from the community.</p>
+            <div className="blogs-header" style={{
+                background: 'linear-gradient(135deg, #1f2635, #3b4255)', 
+                padding: '3rem', 
+                borderRadius: '20px', 
+                color: 'white',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+                marginBottom: '3rem'
+            }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                    <div>
+                        <h1 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '3rem', color: 'white', margin: 0, textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>User Lists</h1>
+                        <p style={{ marginTop: '0.5rem', color: 'rgba(255,255,255,0.7)', fontSize: '1.1rem' }}>Build your own collections and discover public lists from the community.</p>
+                    </div>
                 </div>
-                <span className="lists-hero-chip">Public lists appear here and on the home page</span>
-            </section>
+            </div>
 
             {user ? (
                 <section className="panel lists-create-panel" style={{ marginBottom: '1.25rem' }}>

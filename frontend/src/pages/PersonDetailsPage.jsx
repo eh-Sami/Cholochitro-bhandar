@@ -49,56 +49,71 @@ function PersonDetailsPage() {
     if (!person) return <p className="status">Person not found.</p>
 
     return (
-        <main className="page">
-            <Link className="back-link" to="/movies">← Back</Link>
-            <div className="person-detail">
-                {getProfileUrl(person.picture) ? (
-                    <img
-                        className="person-avatar"
-                        src={getProfileUrl(person.picture)}
-                        alt={person.fullname}
-                    />
-                ) : (
-                    <div className="person-avatar placeholder">No photo</div>
-                )}
-                <div className="person-info">
-                    <h2>{person.fullname}</h2>
-                    <p className="detail-meta">
-                        {person.nationality || '—'} · {person.dateofbirth || '—'}
-                    </p>
-                    <p className="detail-desc">{person.biography || 'No biography available.'}</p>
+        <main className="page-full">
+            <div className="detail-hero">
+                <div 
+                    className="detail-hero-bg" 
+                    style={{ backgroundImage: `url(${getProfileUrl(person.picture)})` }} 
+                />
+                <div className="detail-hero-content">
+                    <Link className="back-link hero-back" to="/celebrities">← Back to Celebrities</Link>
+                    {getProfileUrl(person.picture) ? (
+                        <img
+                            className="detail-hero-poster"
+                            src={getProfileUrl(person.picture)}
+                            alt={person.fullname}
+                            style={{ borderRadius: '50%', width: '250px', height: '250px', objectFit: 'cover' }}
+                        />
+                    ) : (
+                        <div className="detail-hero-poster placeholder" style={{ borderRadius: '50%', width: '250px', height: '250px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#333' }}>No photo</div>
+                    )}
+                    <div className="detail-hero-info">
+                        <h2 className="detail-hero-title">{person.fullname}</h2>
+                        <div className="detail-hero-meta">
+                            <span>{person.nationality || 'Nationality Unknown'}</span>
+                            <span>•</span>
+                            <span>{person.dateofbirth ? new Date(person.dateofbirth).toLocaleDateString() : 'DOB Unknown'}</span>
+                        </div>
+                        <p className="detail-hero-overview">
+                            {person.biography || 'No biography available.'}
+                        </p>
+                    </div>
                 </div>
             </div>
 
-            {credits.length > 0 && (
-                <section className="detail-section">
-                    <h3>Filmography</h3>
-                    <div className="credits-grid">
-                        {credits.map((credit) => (
-                            <Link
-                                className="credit-card"
-                                to={credit.mediatype === 'TVSeries' ? `/tvshows/${credit.mediaid}` : `/movies/${credit.mediaid}`}
-                                key={`${credit.mediatype}-${credit.mediaid}-${credit.crewrole}`}
-                            >
-                                {getPosterUrl(credit.poster) ? (
-                                    <img
-                                        className="credit-poster"
-                                        src={getPosterUrl(credit.poster)}
-                                        alt={credit.title}
-                                        loading="lazy"
-                                    />
-                                ) : (
-                                    <div className="credit-poster placeholder">No poster</div>
-                                )}
-                                <div className="credit-body">
-                                    <h4>{credit.title}</h4>
-                                    <p>{credit.releaseyear || '—'} · {credit.crewrole}</p>
-                                </div>
-                            </Link>
-                        ))}
-                    </div>
-                </section>
-            )}
+            <div className="detail-gridLayout single-col">
+                <div className="detail-main-col">
+                    {credits.length > 0 && (
+                        <section className="detail-section">
+                            <h3>Filmography</h3>
+                            <div className="credits-grid">
+                                {credits.map((credit) => (
+                                    <Link
+                                        className="credit-card"
+                                        to={credit.mediatype === 'TVSeries' ? `/tvshows/${credit.mediaid}` : `/movies/${credit.mediaid}`}
+                                        key={`${credit.mediatype}-${credit.mediaid}-${credit.crewrole}`}
+                                    >
+                                        {getPosterUrl(credit.poster) ? (
+                                            <img
+                                                className="credit-poster"
+                                                src={getPosterUrl(credit.poster)}
+                                                alt={credit.title}
+                                                loading="lazy"
+                                            />
+                                        ) : (
+                                            <div className="credit-poster placeholder">No poster</div>
+                                        )}
+                                        <div className="credit-body">
+                                            <h4>{credit.title}</h4>
+                                            <p>{credit.releaseyear || '—'} · {credit.crewrole}</p>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        </section>
+                    )}
+                </div>
+            </div>
         </main>
     )
 }

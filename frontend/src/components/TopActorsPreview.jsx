@@ -9,7 +9,7 @@ const getProfileUrl = (profilePath) => {
     return `${PROFILE_BASE}${profilePath}`
 }
 
-function TopActorsPreview({ limit = 8 }) {
+function TopActorsPreview({ limit = 8, sectionTitle = 'Top Actors Right Now' }) {
     const [actors, setActors] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
@@ -35,7 +35,7 @@ function TopActorsPreview({ limit = 8 }) {
 
     return (
         <section className="panel">
-            <h3>Top Actors Right Now</h3>
+            {sectionTitle ? <h3>{sectionTitle}</h3> : null}
 
             {loading && <p className="status">Loading top actors...</p>}
             {error && <p className="status error">{error}</p>}

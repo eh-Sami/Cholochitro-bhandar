@@ -204,15 +204,19 @@ function ListDetailPage() {
 
     return (
         <main className="page">
-            <Link className="back-link" to="/lists">← Back to Lists</Link>
+            <button className="btn btn-ghost hero-back" onClick={() => navigate('/lists')} style={{ marginTop: '0', marginBottom: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', position: 'static', color: '#6a7488' }}>
+                ← Back to Lists
+            </button>
 
-            <section className="panel">
-                <h2>{list.listname}</h2>
-                <p className="meta">
-                    <span>By {list.creator}</span>
-                    <span>{list.ispublic ? 'Public' : 'Private'}</span>
+            <section style={{ background: 'white', border: 'none', borderRadius: '24px', padding: '3rem', marginBottom: '3rem', boxShadow: '0 20px 40px rgba(31, 38, 53, 0.05)' }}>
+                <h2 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '3rem', fontWeight: 800, color: '#1f2635', lineHeight: '1.2', margin: '0 0 1rem 0' }}>{list.listname}</h2>
+                <div style={{ display: 'flex', gap: '1rem', color: '#6a7488', fontSize: '1.1rem', marginBottom: '1.5rem' }}>
+                    <span>By <strong style={{ color: '#1f2635' }}>{list.creator}</strong></span>
+                    <span>•</span>
+                    <span className={list.ispublic ? 'list-badge public' : 'list-badge private'}>{list.ispublic ? 'Public' : 'Private'}</span>
+                    <span>•</span>
                     <span>{list.itemCount || 0} items</span>
-                </p>
+                </div>
 
                 {error && <p className="status error">{error}</p>}
 
@@ -245,8 +249,8 @@ function ListDetailPage() {
             </section>
 
             {isOwner && (
-                <section className="panel" style={{ marginTop: '1rem' }}>
-                    <h3>Add Media By Name</h3>
+                <section style={{ background: 'white', border: 'none', borderRadius: '24px', padding: '3rem', marginBottom: '2rem', boxShadow: '0 20px 40px rgba(31, 38, 53, 0.05)' }}>
+                    <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.8rem', color: '#1f2635', marginBottom: '1rem' }}>Add Media By Name</h3>
                     <form onSubmit={handleSearchMedia} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                         <input
                             type="text"
@@ -296,8 +300,8 @@ function ListDetailPage() {
                 </section>
             )}
 
-            <section className="panel" style={{ marginTop: '1rem' }}>
-                <h3>Items</h3>
+            <section style={{ background: 'white', border: 'none', borderRadius: '24px', padding: '3rem', boxShadow: '0 20px 40px rgba(31, 38, 53, 0.05)', marginBottom: '3rem' }}>
+                <h3 style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.8rem', color: '#1f2635', marginBottom: '1.5rem' }}>Items</h3>
 
                 {(!list.items || list.items.length === 0) && (
                     <p className="status">No items in this list yet.</p>
