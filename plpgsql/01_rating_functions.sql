@@ -119,16 +119,11 @@ BEGIN
     -- Step 3: Recalculate Series' overall Rating (average of season averages)
     UPDATE Media m
     SET Rating      = sub.avg_r,
-        RatingCount = sub.total_cnt
+        RatingCount = COALESCE((SELECT COUNT(*)::int FROM Review WHERE EpisodeMediaID = v_media_id), 0)
     FROM (
-        SELECT
-            ROUND(AVG(season_avg)::numeric, 1) AS avg_r,
-            SUM(season_cnt)::int               AS total_cnt
+        SELECT ROUND(AVG(season_avg)::numeric, 1) AS avg_r
         FROM (
-            SELECT
-                SeasonNo,
-                AVG(AvgRating)   AS season_avg,
-                SUM(RatingCount) AS season_cnt
+            SELECT AVG(AvgRating) AS season_avg
             FROM Episode
             WHERE MediaID = v_media_id
             GROUP BY SeasonNo

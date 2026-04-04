@@ -37,80 +37,61 @@ BEGIN
     END IF;
 
     -- ─── Check existing vote ───
+    -- Uses LIMIT 1 to protect against schemas allowing multiple votes per user
     IF p_target_type = 'blog' THEN
         SELECT VoteType INTO v_existing_vote
-        FROM BlogVotes WHERE BlogID = p_target_id AND UserID = p_user_id;
+        FROM BlogVotes WHERE BlogID = p_target_id AND UserID = p_user_id
+        LIMIT 1;
     ELSE
         SELECT VoteType INTO v_existing_vote
-        FROM CommentVotes WHERE CommentID = p_target_id AND UserID = p_user_id;
+        FROM CommentVotes WHERE CommentID = p_target_id AND UserID = p_user_id
+        LIMIT 1;
     END IF;
 
     -- ═══════════════════════════════════════════
-    -- CASE 1: Same vote exists → toggle OFF
+    -- Handle Vote Logic (Delete/Insert for robustness)
     -- ═══════════════════════════════════════════
     IF v_existing_vote = p_vote_type THEN
+        -- Toggle OFF: remove all votes from this user on this target
         IF p_target_type = 'blog' THEN
             DELETE FROM BlogVotes WHERE BlogID = p_target_id AND UserID = p_user_id;
-            UPDATE Blog SET
-                UpvoteCount   = CASE WHEN p_vote_type = 'upvote'   THEN GREATEST(UpvoteCount - 1, 0)   ELSE UpvoteCount END,
-                DownvoteCount = CASE WHEN p_vote_type = 'downvote' THEN GREATEST(DownvoteCount - 1, 0) ELSE DownvoteCount END
-            WHERE BlogID = p_target_id;
         ELSE
             DELETE FROM CommentVotes WHERE CommentID = p_target_id AND UserID = p_user_id;
-            UPDATE Comments SET
-                UpvoteCount   = CASE WHEN p_vote_type = 'upvote'   THEN GREATEST(UpvoteCount - 1, 0)   ELSE UpvoteCount END,
-                DownvoteCount = CASE WHEN p_vote_type = 'downvote' THEN GREATEST(DownvoteCount - 1, 0) ELSE DownvoteCount END
-            WHERE CommentID = p_target_id;
         END IF;
         v_user_vote := NULL;
         v_action := 'removed';
-
-    -- ═══════════════════════════════════════════
-    -- CASE 2: Opposite vote exists → switch
-    -- ═══════════════════════════════════════════
-    ELSIF v_existing_vote IS NOT NULL THEN
-        IF p_target_type = 'blog' THEN
-            UPDATE BlogVotes SET VoteType = p_vote_type, CreatedAt = CURRENT_TIMESTAMP
-            WHERE BlogID = p_target_id AND UserID = p_user_id;
-            UPDATE Blog SET
-                UpvoteCount   = CASE WHEN p_vote_type = 'upvote'   THEN UpvoteCount + 1              ELSE GREATEST(UpvoteCount - 1, 0) END,
-                DownvoteCount = CASE WHEN p_vote_type = 'downvote' THEN DownvoteCount + 1             ELSE GREATEST(DownvoteCount - 1, 0) END
-            WHERE BlogID = p_target_id;
-        ELSE
-            UPDATE CommentVotes SET VoteType = p_vote_type, CreatedAt = CURRENT_TIMESTAMP
-            WHERE CommentID = p_target_id AND UserID = p_user_id;
-            UPDATE Comments SET
-                UpvoteCount   = CASE WHEN p_vote_type = 'upvote'   THEN UpvoteCount + 1              ELSE GREATEST(UpvoteCount - 1, 0) END,
-                DownvoteCount = CASE WHEN p_vote_type = 'downvote' THEN DownvoteCount + 1             ELSE GREATEST(DownvoteCount - 1, 0) END
-            WHERE CommentID = p_target_id;
-        END IF;
-        v_action := 'switched';
-
-    -- ═══════════════════════════════════════════
-    -- CASE 3: No vote exists → new vote
-    -- ═══════════════════════════════════════════
     ELSE
+        -- Switch or New vote: wipe existing and insert the new single vote
         IF p_target_type = 'blog' THEN
+            DELETE FROM BlogVotes WHERE BlogID = p_target_id AND UserID = p_user_id;
             INSERT INTO BlogVotes (BlogID, UserID, VoteType) VALUES (p_target_id, p_user_id, p_vote_type);
-            UPDATE Blog SET
-                UpvoteCount   = CASE WHEN p_vote_type = 'upvote'   THEN UpvoteCount + 1   ELSE UpvoteCount END,
-                DownvoteCount = CASE WHEN p_vote_type = 'downvote' THEN DownvoteCount + 1  ELSE DownvoteCount END
-            WHERE BlogID = p_target_id;
         ELSE
+            DELETE FROM CommentVotes WHERE CommentID = p_target_id AND UserID = p_user_id;
             INSERT INTO CommentVotes (CommentID, UserID, VoteType) VALUES (p_target_id, p_user_id, p_vote_type);
-            UPDATE Comments SET
-                UpvoteCount   = CASE WHEN p_vote_type = 'upvote'   THEN UpvoteCount + 1   ELSE UpvoteCount END,
-                DownvoteCount = CASE WHEN p_vote_type = 'downvote' THEN DownvoteCount + 1  ELSE DownvoteCount END
-            WHERE CommentID = p_target_id;
+        END IF;
+        
+        IF v_existing_vote IS NOT NULL THEN
+            v_action := 'switched';
         END IF;
     END IF;
 
-    -- ─── Return updated counts ───
+    -- ─── Recalculate Totals & Return ───
+    -- Fully resilient counts based on actual vote rows
     IF p_target_type = 'blog' THEN
+        UPDATE Blog SET
+            UpvoteCount   = COALESCE((SELECT COUNT(*) FROM BlogVotes WHERE BlogID = p_target_id AND VoteType = 'upvote'), 0),
+            DownvoteCount = COALESCE((SELECT COUNT(*) FROM BlogVotes WHERE BlogID = p_target_id AND VoteType = 'downvote'), 0)
+        WHERE BlogID = p_target_id;
+        
         RETURN QUERY
             SELECT b.UpvoteCount::INT, b.DownvoteCount::INT, v_user_vote, v_action
             FROM Blog b WHERE b.BlogID = p_target_id;
     ELSE
+        UPDATE Comments SET
+            UpvoteCount   = COALESCE((SELECT COUNT(*) FROM CommentVotes WHERE CommentID = p_target_id AND VoteType = 'upvote'), 0),
+            DownvoteCount = COALESCE((SELECT COUNT(*) FROM CommentVotes WHERE CommentID = p_target_id AND VoteType = 'downvote'), 0)
+        WHERE CommentID = p_target_id;
+        
         RETURN QUERY
             SELECT c.UpvoteCount::INT, c.DownvoteCount::INT, v_user_vote, v_action
             FROM Comments c WHERE c.CommentID = p_target_id;
