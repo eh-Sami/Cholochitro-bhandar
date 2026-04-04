@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import MoviesPage from './pages/MoviesPage'
 import MovieDetailsPage from './pages/MovieDetailsPage'
 import PersonDetailsPage from './pages/PersonDetailsPage'
+import TopActorsPage from './pages/TopActorsPage'
 import SearchPage from './pages/SearchPage'
 import SignupPage from './pages/SignupPage'
 import TVShowsPage from './pages/TVShowsPage'
@@ -40,6 +41,7 @@ function App() {
         <nav className="nav">
           <Link to="/movies">Movies</Link>
           <Link to="/tvshows">TV Shows</Link>
+          <Link to="/actors">Top Actors</Link>
           <Link to="/blogs">Blogs</Link>
           <Link to="/lists">Lists</Link>
           <Link to="/search">Search</Link>
@@ -63,6 +65,7 @@ function App() {
         <Route path="/movies" element={<MoviesPage />} />
         <Route path="/movies/:id" element={<MovieDetailsPage />} />
         <Route path="/persons/:id" element={<PersonDetailsPage />} />
+        <Route path="/actors" element={<TopActorsPage />} />
         <Route path="/tvshows" element={<TVShowsPage />} />
         <Route path="/tvshows/:id" element={<TVShowDetailsPage />} />
         <Route path="/tvshows/:id/seasons" element={<TVShowSeasonsPage />} />

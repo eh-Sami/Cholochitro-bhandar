@@ -759,9 +759,7 @@ app.get('/movies', async (req, res) => {
 // GET single movie by ID with full details
 app.get('/movies/:id', async (req, res) => {
     try {
-        const { id } = req.params; // Get the ID from URL
-
-        // 1. Get basic movie info
+        const { id } = req.params; 
         const movieQuery = `
             SELECT 
                 m.MediaID,
@@ -781,7 +779,6 @@ app.get('/movies/:id', async (req, res) => {
             WHERE m.MediaID = $1 AND m.MediaType = 'Movie'
         `;
 
-        // 2. Get genres for this movie
         const genreQuery = `
             SELECT g.GenreID, g.GenreName
             FROM Genre g
@@ -789,7 +786,6 @@ app.get('/movies/:id', async (req, res) => {
             WHERE mg.MediaID = $1
         `;
 
-        // 3. Get cast (actors only)
         const castQuery = `
             SELECT 
                 p.PersonID,
@@ -802,7 +798,6 @@ app.get('/movies/:id', async (req, res) => {
             LIMIT 20
         `;
 
-        // 4. Get directors and writers
         const crewQuery = `
             SELECT 
                 p.PersonID,
@@ -814,7 +809,6 @@ app.get('/movies/:id', async (req, res) => {
             WHERE c.MediaID = $1 AND c.CrewRole IN ('Director', 'Writer')
         `;
 
-        // 5. Get studios/production companies
         const studioQuery = `
             SELECT s.StudioID, s.StudioName, s.LogoURL, s.WebsiteURL
             FROM Studio s
@@ -822,22 +816,21 @@ app.get('/movies/:id', async (req, res) => {
             WHERE p.MediaID = $1
         `;
 
-        const websiteRatingQuery = `
+        const reviewCountQuery = `
             SELECT
-                ROUND(AVG(Rating)::numeric, 1) as website_rating,
                 COUNT(*)::int as review_count
             FROM Review
             WHERE MediaID = $1
         `;
 
         // Execute all queries in parallel (faster!)
-        const [movieResult, genreResult, castResult, crewResult, studioResult, websiteRatingResult] = await Promise.all([
+        const [movieResult, genreResult, castResult, crewResult, studioResult, reviewCountResult] = await Promise.all([
             pool.query(movieQuery, [id]),
             pool.query(genreQuery, [id]),
             pool.query(castQuery, [id]),
             pool.query(crewQuery, [id]),
             pool.query(studioQuery, [id]),
-            pool.query(websiteRatingQuery, [id])
+            pool.query(reviewCountQuery, [id])
         ]);
 
         // Check if movie exists
@@ -854,8 +847,8 @@ app.get('/movies/:id', async (req, res) => {
         movie.cast = castResult.rows;
         movie.crew = crewResult.rows;
         movie.studios = studioResult.rows;
-        movie.websiteRating = websiteRatingResult.rows[0]?.website_rating || null;
-        movie.reviewCount = websiteRatingResult.rows[0]?.review_count || 0;
+        movie.websiteRating = movie.rating || null;
+        movie.reviewCount = reviewCountResult.rows[0]?.review_count || 0;
 
         res.json({
             success: true,
@@ -1016,10 +1009,13 @@ app.get('/genres', async (req, res) => {
     }
 });
 
-// GET top actors by number of titles
+// GET top actors by number of titles with pagination
 app.get('/actors/top', async (req, res) => {
     try {
-        const limit = parseInt(req.query.limit) || 10;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const offset = (page - 1) * limit;
+        const maxTotal = 200; // Max 200 actors total
 
         const query = `
             SELECT
@@ -1034,14 +1030,33 @@ app.get('/actors/top', async (req, res) => {
             WHERE c.CrewRole = 'Actor'
             GROUP BY p.PersonID, p.FullName, p.Picture
             ORDER BY title_count DESC, avg_rating DESC NULLS LAST
-            LIMIT $1
+            LIMIT $1 OFFSET $2
         `;
 
-        const result = await pool.query(query, [limit]);
+        const countQuery = `
+            SELECT COUNT(DISTINCT p.PersonID) as total
+            FROM Person p
+            JOIN Crew c ON p.PersonID = c.PersonID
+            JOIN Media m ON c.MediaID = m.MediaID
+            WHERE c.CrewRole = 'Actor'
+        `;
+
+        const [result, countResult] = await Promise.all([
+            pool.query(query, [limit, offset]),
+            pool.query(countQuery)
+        ]);
+
+        const total = Math.min(parseInt(countResult.rows[0].total), maxTotal);
 
         res.json({
             success: true,
-            data: result.rows
+            data: result.rows,
+            pagination: {
+                page: page,
+                limit: limit,
+                total: total,
+                pages: Math.ceil(total / limit)
+            }
         });
     } catch (error) {
         console.error('Error fetching top actors:', error);
