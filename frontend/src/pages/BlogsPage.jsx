@@ -11,6 +11,7 @@ export default function BlogsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [sort, setSort] = useState('newest'); // 'newest' or 'popular'
+  const [pageError, setPageError] = useState('');
   
   const { user: currentUser } = getStoredAuth();
   const token = getAuthToken();
@@ -120,9 +121,10 @@ export default function BlogsPage() {
 
   const handleCreateClick = () => {
     if (!currentUser || !token) {
-      alert("You must be logged in to create a post!");
+      setPageError('You must be logged in to create a post.');
       return;
     }
+    setPageError('');
     navigate('/blogs/new');
   };
 
@@ -154,6 +156,22 @@ export default function BlogsPage() {
           </div>
         </div>
       </div>
+
+      {pageError && (
+        <div
+          style={{
+            marginBottom: '1rem',
+            padding: '0.75rem 0.9rem',
+            borderRadius: '10px',
+            border: '1px solid #fecaca',
+            background: '#fef2f2',
+            color: '#991b1b',
+            fontWeight: 600
+          }}
+        >
+          {pageError}
+        </div>
+      )}
 
       {loading && <p>Loading blogs...</p>}
 
