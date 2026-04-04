@@ -87,64 +87,9 @@ const pool = new Pool({
     } : false
 });
 
-const refreshTvSeriesRatings = async (client, mediaId, seasonNo) => {
-    const seasonAggregate = await client.query(
-        `
-        SELECT
-            ROUND(AVG(AvgRating)::numeric, 1) AS season_rating
-        FROM Episode
-        WHERE MediaID = $1 AND SeasonNo = $2
-        `,
-        [mediaId, seasonNo]
-    );
-
-    await client.query(
-        `
-        UPDATE Season
-        SET AvgRating = $1
-        WHERE MediaID = $2 AND SeasonNo = $3
-        `,
-        [seasonAggregate.rows[0]?.season_rating ?? null, mediaId, seasonNo]
-    );
-
-    const [seriesAggregate, seriesCount] = await Promise.all([
-        client.query(
-            `
-            WITH season_scores AS (
-                SELECT SeasonNo, AVG(AvgRating) AS season_avg
-                FROM Episode
-                WHERE MediaID = $1
-                GROUP BY SeasonNo
-            )
-            SELECT ROUND(AVG(season_avg)::numeric, 1) AS series_rating
-            FROM season_scores
-            `,
-            [mediaId]
-        ),
-        client.query(
-            `
-            SELECT COALESCE(SUM(RatingCount), 0)::int AS series_rating_count
-            FROM Episode
-            WHERE MediaID = $1
-            `,
-            [mediaId]
-        )
-    ]);
-
-    await client.query(
-        `
-        UPDATE Media
-        SET Rating = $1,
-            RatingCount = $2
-        WHERE MediaID = $3 AND MediaType = 'TVSeries'
-        `,
-        [
-            seriesAggregate.rows[0]?.series_rating ?? null,
-            seriesCount.rows[0]?.series_rating_count || 0,
-            mediaId
-        ]
-    );
-};
+// Rating recalculation is now handled by PL/pgSQL triggers:
+// - trg_refresh_movie_rating  (for Movie reviews)
+// - trg_cascade_episode_rating (for Episode → Season → Series)
 
 // Test connection on startup
 pool.connect((err, client, release) => {
@@ -360,6 +305,7 @@ app.get('/reviews/media/:mediaId', async (req, res) => {
 });
 
 // POST media review - creates or updates the user's review for the title
+// Rating recalculation is handled by trg_refresh_movie_rating trigger
 app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
     const client = await pool.connect();
     let transactionStarted = false;
@@ -378,7 +324,7 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
 
         const mediaTypeResult = await client.query(
             `
-            SELECT Rating, RatingCount, MediaType
+            SELECT MediaType
             FROM Media
             WHERE MediaID = $1
             LIMIT 1
@@ -408,19 +354,9 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
             [`review:${req.user.userId}:${mediaId}`]
         );
 
-        const mediaRow = await client.query(
-            `
-            SELECT Rating, RatingCount
-            FROM Media
-            WHERE MediaID = $1
-            FOR UPDATE
-            `,
-            [mediaId]
-        );
-
         const existingReview = await client.query(
             `
-            SELECT ReviewID, Rating
+            SELECT ReviewID
             FROM Review
             WHERE UserID = $1 AND MediaID = $2
             LIMIT 1
@@ -428,22 +364,14 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
             [req.user.userId, mediaId]
         );
 
-        const currentRating = Number(mediaRow.rows[0].rating) || 0;
-        const currentCount = Number(mediaRow.rows[0].ratingcount) || 0;
-
         if (existingReview.rows.length > 0) {
-            const previousRating = Number(existingReview.rows[0].rating) || 0;
-            const nextRating = currentCount > 0
-                ? ((currentRating * currentCount) - previousRating + numericRating) / currentCount
-                : numericRating;
-
+            // Update existing review — trigger recalculates Media.Rating automatically
             const updated = await client.query(
                 `
                 UPDATE Review
                 SET Rating = $1,
                     ReviewText = $2,
-                    SpoilerFlag = $3,
-                    EditedAt = CURRENT_TIMESTAMP
+                    SpoilerFlag = $3
                 WHERE ReviewID = $4
                 RETURNING ReviewID, UserID, MediaID, Rating, ReviewText, SpoilerFlag, PostDate, EditedAt
                 `,
@@ -453,16 +381,6 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
                     Boolean(spoilerFlag),
                     existingReview.rows[0].reviewid
                 ]
-            );
-
-            await client.query(
-                `
-                UPDATE Media
-                SET Rating = $1,
-                    RatingCount = $2
-                WHERE MediaID = $3
-                `,
-                [Number(nextRating.toFixed(1)), currentCount, mediaId]
             );
 
             await client.query('COMMIT');
@@ -475,6 +393,7 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
             });
         }
 
+        // Insert new review — trigger recalculates Media.Rating automatically
         const inserted = await client.query(
             `
             INSERT INTO Review (UserID, MediaID, ReviewText, Rating, SpoilerFlag)
@@ -490,21 +409,6 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
             ]
         );
 
-        const nextCount = currentCount + 1;
-        const nextRating = nextCount > 0
-            ? ((currentRating * currentCount) + numericRating) / nextCount
-            : numericRating;
-
-        await client.query(
-            `
-            UPDATE Media
-            SET Rating = $1,
-                RatingCount = $2
-            WHERE MediaID = $3
-            `,
-            [Number(nextRating.toFixed(1)), nextCount, mediaId]
-        );
-
         await client.query('COMMIT');
         transactionStarted = false;
 
@@ -516,6 +420,12 @@ app.post('/reviews/media/:mediaId', requireAuth, async (req, res) => {
     } catch (error) {
         if (transactionStarted) {
             await client.query('ROLLBACK');
+        }
+        if (error.code === 'P0001') {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
         }
         console.error('Error creating/updating media review:', error);
         return res.status(500).json({
@@ -601,6 +511,7 @@ app.get('/reviews/episode/:mediaId/:seasonNo/:episodeNo', async (req, res) => {
 });
 
 // POST episode review - one review per user per episode (update if existing)
+// Rating cascade (Episode → Season → Series) handled by trg_cascade_episode_rating trigger
 app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (req, res) => {
     const client = await pool.connect();
     let transactionStarted = false;
@@ -625,17 +536,17 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
             [`review_ep:${req.user.userId}:${mediaId}:${seasonNo}:${episodeNo}`]
         );
 
-        const episodeResult = await client.query(
+        const episodeCheck = await client.query(
             `
-            SELECT AvgRating, RatingCount
+            SELECT 1
             FROM Episode
             WHERE MediaID = $1 AND SeasonNo = $2 AND EpisodeNo = $3
-            FOR UPDATE
+            LIMIT 1
             `,
             [mediaId, seasonNo, episodeNo]
         );
 
-        if (episodeResult.rows.length === 0) {
+        if (episodeCheck.rows.length === 0) {
             await client.query('ROLLBACK');
             transactionStarted = false;
             return res.status(404).json({
@@ -644,12 +555,9 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
             });
         }
 
-        const currentEpisodeRating = Number(episodeResult.rows[0].avgrating) || 0;
-        const currentEpisodeCount = Number(episodeResult.rows[0].ratingcount) || 0;
-
         const existingReview = await client.query(
             `
-            SELECT ReviewID, Rating
+            SELECT ReviewID
             FROM Review
             WHERE UserID = $1
               AND EpisodeMediaID = $2
@@ -661,18 +569,13 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
         );
 
         if (existingReview.rows.length > 0) {
-            const previousRating = Number(existingReview.rows[0].rating) || 0;
-            const nextEpisodeRating = currentEpisodeCount > 0
-                ? ((currentEpisodeRating * currentEpisodeCount) - previousRating + numericRating) / currentEpisodeCount
-                : numericRating;
-
+            // Update existing review — trigger cascades rating automatically
             const updated = await client.query(
                 `
                 UPDATE Review
                 SET Rating = $1,
                     ReviewText = $2,
-                    SpoilerFlag = $3,
-                    EditedAt = CURRENT_TIMESTAMP
+                    SpoilerFlag = $3
                 WHERE ReviewID = $4
                 RETURNING ReviewID, UserID, EpisodeMediaID, EpisodeSeasonNo, EpisodeNo, Rating, ReviewText, SpoilerFlag, PostDate, EditedAt
                 `,
@@ -684,24 +587,6 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
                 ]
             );
 
-            await client.query(
-                `
-                UPDATE Episode
-                SET AvgRating = $1,
-                    RatingCount = $2
-                WHERE MediaID = $3 AND SeasonNo = $4 AND EpisodeNo = $5
-                `,
-                [
-                    Number(nextEpisodeRating.toFixed(1)),
-                    currentEpisodeCount,
-                    mediaId,
-                    seasonNo,
-                    episodeNo
-                ]
-            );
-
-            await refreshTvSeriesRatings(client, mediaId, seasonNo);
-
             await client.query('COMMIT');
             transactionStarted = false;
 
@@ -712,6 +597,7 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
             });
         }
 
+        // Insert new review — trigger cascades rating automatically
         const inserted = await client.query(
             `
             INSERT INTO Review (
@@ -738,29 +624,6 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
             ]
         );
 
-        const nextEpisodeCount = currentEpisodeCount + 1;
-        const nextEpisodeRating = nextEpisodeCount > 0
-            ? ((currentEpisodeRating * currentEpisodeCount) + numericRating) / nextEpisodeCount
-            : numericRating;
-
-        await client.query(
-            `
-            UPDATE Episode
-            SET AvgRating = $1,
-                RatingCount = $2
-            WHERE MediaID = $3 AND SeasonNo = $4 AND EpisodeNo = $5
-            `,
-            [
-                Number(nextEpisodeRating.toFixed(1)),
-                nextEpisodeCount,
-                mediaId,
-                seasonNo,
-                episodeNo
-            ]
-        );
-
-        await refreshTvSeriesRatings(client, mediaId, seasonNo);
-
         await client.query('COMMIT');
         transactionStarted = false;
 
@@ -772,6 +635,12 @@ app.post('/reviews/episode/:mediaId/:seasonNo/:episodeNo', requireAuth, async (r
     } catch (error) {
         if (transactionStarted) {
             await client.query('ROLLBACK');
+        }
+        if (error.code === 'P0001') {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
         }
         console.error('Error creating/updating episode review:', error);
         return res.status(500).json({
@@ -1428,7 +1297,7 @@ app.get('/tvshows/:id', async (req, res) => {
         `;
 
         // Execute all queries in parallel
-        const [tvResult, genreResult, castResult, crewResult, studioResult, seasonsResult, episodesResult, seasonAggregateResult, showAggregateResult] = 
+        const [tvResult, genreResult, castResult, crewResult, studioResult, seasonsResult, episodesResult, seasonAggregateResult, showAggregateResult] =
             await Promise.all([
                 pool.query(tvQuery, [id]),
                 pool.query(genreQuery, [id]),
@@ -2375,6 +2244,12 @@ app.post('/blogs', requireAuth, async (req, res) => {
             data: result.rows[0]
         });
     } catch (error) {
+        if (error.code === 'P0001') {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
+        }
         console.error('Error creating blog:', error);
         return res.status(500).json({
             success: false,
@@ -2408,8 +2283,7 @@ app.put('/blogs/:id', requireAuth, async (req, res) => {
             `
             UPDATE Blog
             SET BlogTitle = COALESCE($1, BlogTitle),
-                Content = COALESCE($2, Content),
-                EditedAt = CURRENT_TIMESTAMP
+                Content = COALESCE($2, Content)
             WHERE BlogID = $3
             RETURNING BlogID, BlogTitle, Content, PostDate, EditedAt, UpvoteCount, DownvoteCount
             `,
@@ -2446,6 +2320,12 @@ app.put('/blogs/:id', requireAuth, async (req, res) => {
             data: result.rows[0]
         });
     } catch (error) {
+        if (error.code === 'P0001') {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
+        }
         console.error('Error updating blog:', error);
         return res.status(500).json({
             success: false,
@@ -2489,199 +2369,79 @@ app.delete('/blogs/:id', requireAuth, async (req, res) => {
     }
 });
 
+// Blog upvote — uses fn_toggle_vote stored function
 app.post('/blogs/:id/upvote', requireAuth, async (req, res) => {
-    const client = await pool.connect();
     try {
         const { id } = req.params;
         const userId = req.user.userId;
 
-        await client.query('BEGIN');
+        const result = await pool.query(
+            'SELECT * FROM fn_toggle_vote($1, $2, $3, $4)',
+            ['blog', id, userId, 'upvote']
+        );
 
-        const blogCheck = await client.query('SELECT BlogID FROM Blog WHERE BlogID = $1 FOR UPDATE', [id]);
-        if (blogCheck.rows.length === 0) {
-            await client.query('ROLLBACK');
+        if (result.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Blog not found'
             });
         }
 
-        const existingVote = await client.query(
-            'SELECT VoteType FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 LIMIT 1',
-            [id, userId]
-        );
-
-        let userVote = 'upvote';
-        let action = 'added';
-
-        if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'upvote') {
-            await client.query(
-                'DELETE FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 AND VoteType = $3',
-                [id, userId, 'upvote']
-            );
-
-            await client.query(
-                `
-                UPDATE Blog
-                SET UpvoteCount = GREATEST(UpvoteCount - 1, 0)
-                WHERE BlogID = $1
-                `,
-                [id]
-            );
-
-            userVote = null;
-            action = 'removed';
-        } else if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'downvote') {
-            await client.query(
-                `
-                UPDATE BlogVotes
-                SET VoteType = 'upvote', CreatedAt = CURRENT_TIMESTAMP
-                WHERE BlogID = $1 AND UserID = $2
-                `,
-                [id, userId]
-            );
-
-            await client.query(
-                `
-                UPDATE Blog
-                SET UpvoteCount = UpvoteCount + 1,
-                    DownvoteCount = GREATEST(DownvoteCount - 1, 0)
-                WHERE BlogID = $1
-                `,
-                [id]
-            );
-
-            action = 'switched';
-        } else {
-            await client.query(
-                'INSERT INTO BlogVotes (BlogID, UserID, VoteType) VALUES ($1, $2, $3)',
-                [id, userId, 'upvote']
-            );
-
-            await client.query(
-                `
-                UPDATE Blog
-                SET UpvoteCount = UpvoteCount + 1
-                WHERE BlogID = $1
-                `,
-                [id]
-            );
-        }
-
-        const result = await client.query(
-            'SELECT BlogID, UpvoteCount, DownvoteCount FROM Blog WHERE BlogID = $1',
-            [id]
-        );
-
-        await client.query('COMMIT');
-        return res.json({ success: true, data: { ...result.rows[0], uservote: userVote }, action });
+        const row = result.rows[0];
+        return res.json({
+            success: true,
+            data: {
+                blogid: Number(id),
+                upvotecount: row.upvote_count,
+                downvotecount: row.downvote_count,
+                uservote: row.user_vote
+            },
+            action: row.action
+        });
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error('Error upvoting blog:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to upvote blog'
         });
-    } finally {
-        client.release();
     }
 });
 
+// Blog downvote — uses fn_toggle_vote stored function
 app.post('/blogs/:id/downvote', requireAuth, async (req, res) => {
-    const client = await pool.connect();
     try {
         const { id } = req.params;
         const userId = req.user.userId;
 
-        await client.query('BEGIN');
+        const result = await pool.query(
+            'SELECT * FROM fn_toggle_vote($1, $2, $3, $4)',
+            ['blog', id, userId, 'downvote']
+        );
 
-        const blogCheck = await client.query('SELECT BlogID FROM Blog WHERE BlogID = $1 FOR UPDATE', [id]);
-        if (blogCheck.rows.length === 0) {
-            await client.query('ROLLBACK');
+        if (result.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Blog not found'
             });
         }
 
-        const existingVote = await client.query(
-            'SELECT VoteType FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 LIMIT 1',
-            [id, userId]
-        );
-
-        let userVote = 'downvote';
-        let action = 'added';
-
-        if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'downvote') {
-            await client.query(
-                'DELETE FROM BlogVotes WHERE BlogID = $1 AND UserID = $2 AND VoteType = $3',
-                [id, userId, 'downvote']
-            );
-
-            await client.query(
-                `
-                UPDATE Blog
-                SET DownvoteCount = GREATEST(DownvoteCount - 1, 0)
-                WHERE BlogID = $1
-                `,
-                [id]
-            );
-
-            userVote = null;
-            action = 'removed';
-        } else if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'upvote') {
-            await client.query(
-                `
-                UPDATE BlogVotes
-                SET VoteType = 'downvote', CreatedAt = CURRENT_TIMESTAMP
-                WHERE BlogID = $1 AND UserID = $2
-                `,
-                [id, userId]
-            );
-
-            await client.query(
-                `
-                UPDATE Blog
-                SET DownvoteCount = DownvoteCount + 1,
-                    UpvoteCount = GREATEST(UpvoteCount - 1, 0)
-                WHERE BlogID = $1
-                `,
-                [id]
-            );
-
-            action = 'switched';
-        } else {
-            await client.query(
-                'INSERT INTO BlogVotes (BlogID, UserID, VoteType) VALUES ($1, $2, $3)',
-                [id, userId, 'downvote']
-            );
-
-            await client.query(
-                `
-                UPDATE Blog
-                SET DownvoteCount = DownvoteCount + 1
-                WHERE BlogID = $1
-                `,
-                [id]
-            );
-        }
-
-        const result = await client.query(
-            'SELECT BlogID, UpvoteCount, DownvoteCount FROM Blog WHERE BlogID = $1',
-            [id]
-        );
-
-        await client.query('COMMIT');
-        return res.json({ success: true, data: { ...result.rows[0], uservote: userVote }, action });
+        const row = result.rows[0];
+        return res.json({
+            success: true,
+            data: {
+                blogid: Number(id),
+                upvotecount: row.upvote_count,
+                downvotecount: row.downvote_count,
+                uservote: row.user_vote
+            },
+            action: row.action
+        });
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error('Error downvoting blog:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to downvote blog'
         });
-    } finally {
-        client.release();
     }
 });
 
@@ -2841,6 +2601,12 @@ app.post('/blogs/:id/comments', requireAuth, async (req, res) => {
             data: result.rows[0]
         });
     } catch (error) {
+        if (error.code === 'P0001') {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
+        }
         console.error('Error creating comment:', error);
         return res.status(500).json({
             success: false,
@@ -2879,8 +2645,7 @@ app.put('/comments/:id', requireAuth, async (req, res) => {
         const result = await pool.query(
             `
             UPDATE Comments
-            SET CommentText = $1,
-                EditedAt = CURRENT_TIMESTAMP
+            SET CommentText = $1
             WHERE CommentID = $2
             RETURNING CommentID, CommentText, PostDate, EditedAt, UpvoteCount, DownvoteCount
             `,
@@ -2917,6 +2682,12 @@ app.put('/comments/:id', requireAuth, async (req, res) => {
             data: result.rows[0]
         });
     } catch (error) {
+        if (error.code === 'P0001') {
+            return res.status(400).json({
+                success: false,
+                error: error.message
+            });
+        }
         console.error('Error updating comment:', error);
         return res.status(500).json({
             success: false,
@@ -2960,199 +2731,79 @@ app.delete('/comments/:id', requireAuth, async (req, res) => {
     }
 });
 
+// Comment upvote — uses fn_toggle_vote stored function
 app.post('/comments/:id/upvote', requireAuth, async (req, res) => {
-    const client = await pool.connect();
     try {
         const { id } = req.params;
         const userId = req.user.userId;
 
-        await client.query('BEGIN');
+        const result = await pool.query(
+            'SELECT * FROM fn_toggle_vote($1, $2, $3, $4)',
+            ['comment', id, userId, 'upvote']
+        );
 
-        const commentCheck = await client.query('SELECT CommentID FROM Comments WHERE CommentID = $1 FOR UPDATE', [id]);
-        if (commentCheck.rows.length === 0) {
-            await client.query('ROLLBACK');
+        if (result.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Comment not found'
             });
         }
 
-        const existingVote = await client.query(
-            'SELECT VoteType FROM CommentVotes WHERE CommentID = $1 AND UserID = $2 LIMIT 1',
-            [id, userId]
-        );
-
-        let userVote = 'upvote';
-        let action = 'added';
-
-        if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'upvote') {
-            await client.query(
-                'DELETE FROM CommentVotes WHERE CommentID = $1 AND UserID = $2 AND VoteType = $3',
-                [id, userId, 'upvote']
-            );
-
-            await client.query(
-                `
-                UPDATE Comments
-                SET UpvoteCount = GREATEST(UpvoteCount - 1, 0)
-                WHERE CommentID = $1
-                `,
-                [id]
-            );
-
-            userVote = null;
-            action = 'removed';
-        } else if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'downvote') {
-            await client.query(
-                `
-                UPDATE CommentVotes
-                SET VoteType = 'upvote', CreatedAt = CURRENT_TIMESTAMP
-                WHERE CommentID = $1 AND UserID = $2
-                `,
-                [id, userId]
-            );
-
-            await client.query(
-                `
-                UPDATE Comments
-                SET UpvoteCount = UpvoteCount + 1,
-                    DownvoteCount = GREATEST(DownvoteCount - 1, 0)
-                WHERE CommentID = $1
-                `,
-                [id]
-            );
-
-            action = 'switched';
-        } else {
-            await client.query(
-                'INSERT INTO CommentVotes (CommentID, UserID, VoteType) VALUES ($1, $2, $3)',
-                [id, userId, 'upvote']
-            );
-
-            await client.query(
-                `
-                UPDATE Comments
-                SET UpvoteCount = UpvoteCount + 1
-                WHERE CommentID = $1
-                `,
-                [id]
-            );
-        }
-
-        const result = await client.query(
-            'SELECT CommentID, UpvoteCount, DownvoteCount FROM Comments WHERE CommentID = $1',
-            [id]
-        );
-
-        await client.query('COMMIT');
-        return res.json({ success: true, data: { ...result.rows[0], uservote: userVote }, action });
+        const row = result.rows[0];
+        return res.json({
+            success: true,
+            data: {
+                commentid: Number(id),
+                upvotecount: row.upvote_count,
+                downvotecount: row.downvote_count,
+                uservote: row.user_vote
+            },
+            action: row.action
+        });
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error('Error upvoting comment:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to upvote comment'
         });
-    } finally {
-        client.release();
     }
 });
 
+// Comment downvote — uses fn_toggle_vote stored function
 app.post('/comments/:id/downvote', requireAuth, async (req, res) => {
-    const client = await pool.connect();
     try {
         const { id } = req.params;
         const userId = req.user.userId;
 
-        await client.query('BEGIN');
+        const result = await pool.query(
+            'SELECT * FROM fn_toggle_vote($1, $2, $3, $4)',
+            ['comment', id, userId, 'downvote']
+        );
 
-        const commentCheck = await client.query('SELECT CommentID FROM Comments WHERE CommentID = $1 FOR UPDATE', [id]);
-        if (commentCheck.rows.length === 0) {
-            await client.query('ROLLBACK');
+        if (result.rows.length === 0) {
             return res.status(404).json({
                 success: false,
                 error: 'Comment not found'
             });
         }
 
-        const existingVote = await client.query(
-            'SELECT VoteType FROM CommentVotes WHERE CommentID = $1 AND UserID = $2 LIMIT 1',
-            [id, userId]
-        );
-
-        let userVote = 'downvote';
-        let action = 'added';
-
-        if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'downvote') {
-            await client.query(
-                'DELETE FROM CommentVotes WHERE CommentID = $1 AND UserID = $2 AND VoteType = $3',
-                [id, userId, 'downvote']
-            );
-
-            await client.query(
-                `
-                UPDATE Comments
-                SET DownvoteCount = GREATEST(DownvoteCount - 1, 0)
-                WHERE CommentID = $1
-                `,
-                [id]
-            );
-
-            userVote = null;
-            action = 'removed';
-        } else if (existingVote.rows.length > 0 && existingVote.rows[0].votetype === 'upvote') {
-            await client.query(
-                `
-                UPDATE CommentVotes
-                SET VoteType = 'downvote', CreatedAt = CURRENT_TIMESTAMP
-                WHERE CommentID = $1 AND UserID = $2
-                `,
-                [id, userId]
-            );
-
-            await client.query(
-                `
-                UPDATE Comments
-                SET DownvoteCount = DownvoteCount + 1,
-                    UpvoteCount = GREATEST(UpvoteCount - 1, 0)
-                WHERE CommentID = $1
-                `,
-                [id]
-            );
-
-            action = 'switched';
-        } else {
-            await client.query(
-                'INSERT INTO CommentVotes (CommentID, UserID, VoteType) VALUES ($1, $2, $3)',
-                [id, userId, 'downvote']
-            );
-
-            await client.query(
-                `
-                UPDATE Comments
-                SET DownvoteCount = DownvoteCount + 1
-                WHERE CommentID = $1
-                `,
-                [id]
-            );
-        }
-
-        const result = await client.query(
-            'SELECT CommentID, UpvoteCount, DownvoteCount FROM Comments WHERE CommentID = $1',
-            [id]
-        );
-
-        await client.query('COMMIT');
-        return res.json({ success: true, data: { ...result.rows[0], uservote: userVote }, action });
+        const row = result.rows[0];
+        return res.json({
+            success: true,
+            data: {
+                commentid: Number(id),
+                upvotecount: row.upvote_count,
+                downvotecount: row.downvote_count,
+                uservote: row.user_vote
+            },
+            action: row.action
+        });
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error('Error downvoting comment:', error);
         return res.status(500).json({
             success: false,
             error: 'Failed to downvote comment'
         });
-    } finally {
-        client.release();
     }
 });
 
