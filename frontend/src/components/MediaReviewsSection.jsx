@@ -94,28 +94,46 @@ function MediaReviewsSection({ mediaId }) {
         <section className="detail-section reviews-section">
             <h3>Rating & Reviews</h3>
 
-            <div className="website-rating-box">
-                <span className="website-rating-label">Rating</span>
-                <strong className="website-rating-value">
-                    {currentRating ? `⭐ ${currentRating}` : 'Not enough ratings yet'}
-                </strong>
-                <span className="website-rating-count">
-                    {ratingCount || reviewCount} {((ratingCount || reviewCount) === 1) ? 'rating' : 'ratings'}
-                </span>
+            <div style={{ display: 'flex', gap: '2rem', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.9rem', color: '#6a7488', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Overall Rating</span>
+                    <strong style={{ fontSize: '2.5rem', fontFamily: 'Outfit, sans-serif', color: '#1f2635', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {currentRating ? <><span style={{color: 'var(--accent-strong)'}}>★</span> {currentRating}<span style={{fontSize: '1rem', color: '#8a94a6'}}>/10</span></> : <span style={{fontSize:'1.2rem', fontWeight:500, color:'#8a94a6'}}>No ratings yet</span>}
+                    </strong>
+                    {currentRating && <span style={{ fontSize: '0.9rem', color: '#8a94a6' }}>
+                        {ratingCount || reviewCount} {((ratingCount || reviewCount) === 1) ? 'rating' : 'ratings'}
+                    </span>}
+                </div>
             </div>
 
             {user ? (
-                <form className="review-form" onSubmit={handleSubmit}>
-                    <label htmlFor={`rating-${mediaId}`}>Your Rating (1-10)</label>
-                    <input
-                        id={`rating-${mediaId}`}
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={rating}
-                        onChange={(event) => setRating(event.target.value)}
-                        required
-                    />
+                <form className="review-form" onSubmit={handleSubmit} style={{ background: '#ffffff', borderRadius: '16px', padding: '2rem', border: '1px solid #edf0f6', boxShadow: '0 10px 25px rgba(0,0,0,0.03)' }}>
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label htmlFor={`rating-${mediaId}`} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#1f2635' }}>Your Rating</label>
+                        <select
+                            id={`rating-${mediaId}`}
+                            className="sleek-dropdown"
+                            value={rating}
+                            onChange={(event) => setRating(Number(event.target.value))}
+                            required
+                            style={{ 
+                                width: '100px', 
+                                padding: '0.8rem', 
+                                background: 'white', 
+                                border: '2px solid #e2e6f0', 
+                                borderRadius: '12px', 
+                                fontSize: '1.1rem',
+                                color: 'var(--accent-strong)',
+                                fontWeight: 600,
+                                outline: 'none',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {[10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(num => (
+                                <option key={num} value={num}>{num}</option>
+                            ))}
+                        </select>
+                    </div>
 
                     <label htmlFor={`review-${mediaId}`}>Your Review (optional)</label>
                     <textarea

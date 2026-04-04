@@ -237,117 +237,76 @@ function TVShowDetailsPage() {
         : 'N/A'
 
     return (
-        <main className="page">
-            <Link className="back-link" to="/tvshows">← Back to TV Shows</Link>
-            <div className="detail">
-                {getPosterUrl(show.poster) ? (
-                    <img
-                        className="detail-poster"
-                        src={getPosterUrl(show.poster)}
-                        alt={show.title}
-                    />
-                ) : (
-                    <div className="detail-poster placeholder">No poster</div>
-                )}
-                <div className="detail-body">
-                    <h2>{show.title}</h2>
-                    <div className="detail-stack">
-                        <div className="detail-left-panel">
-                            {show.genres?.length > 0 && (
-                                <div className="detail-section genres-large">
-                                    <h3>Genres</h3>
-                                    <div className="genre-chips">
-                                        {show.genres.map((genre) => (
-                                            <span className="genre-chip" key={genre.genreid}>{genre.genrename}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="detail-section detail-facts">
-                                <div className="detail-facts-grid detail-facts-row">
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">📅</span>
-                                        <span className="detail-fact-label">Release Year</span>
-                                        <strong className="detail-fact-value">{show.releaseyear || '—'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">🌐</span>
-                                        <span className="detail-fact-label">Language</span>
-                                        <strong className="detail-fact-value">{show.languagename || '—'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">📺</span>
-                                        <span className="detail-fact-label">Seasons</span>
-                                        <strong className="detail-fact-value">{show.numberofseasons || 0}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">📡</span>
-                                        <span className="detail-fact-label">Status</span>
-                                        <strong className="detail-fact-value">{show.isongoing ? 'Ongoing' : 'Ended'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">⭐</span>
-                                        <span className="detail-fact-label">Rating</span>
-                                        <strong className="detail-fact-value">
-                                            {show.rating ? `⭐ ${show.rating}` : 'N/A'}
-                                        </strong>
-                                        <small>{show.ratingcount || 0} ratings</small>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">🏆</span>
-                                        <span className="detail-fact-label">Top Rank</span>
-                                        <strong className="detail-fact-value">{rank ? `#${rank} / 200` : 'Outside Top 200'}</strong>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="detail-section">
-                                <h3>Synopsis</h3>
-                                <p className="detail-desc detail-desc-large">
-                                    {show.description || 'No description available.'}
-                                </p>
-                            </div>
-
-                            <div className="detail-section">
-                                <h3>Add To List</h3>
-                                {!user && (
-                                    <p className="status">Please <Link to="/login">login</Link> to add this title to your lists.</p>
-                                )}
-
-                                {user && myLists.length === 0 && (
-                                    <p className="status">You have no lists yet. <Link to="/lists">Create one first</Link>.</p>
-                                )}
-
-                                {user && myLists.length > 0 && (
-                                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <select value={selectedListId} onChange={(event) => setSelectedListId(event.target.value)}>
-                                            {myLists.map((list) => (
-                                                <option key={list.listid} value={list.listid}>
-                                                    {list.listname}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button type="button" className="btn btn-primary btn-sm" onClick={handleAddToList} disabled={addingToList}>
-                                            {addingToList ? 'Adding...' : 'Add'}
-                                        </button>
-                                        <Link className="btn btn-ghost btn-sm" to="/lists">Manage Lists</Link>
-                                    </div>
-                                )}
-
-                                {listActionStatus && <p className="status" style={{ marginTop: '0.5rem' }}>{listActionStatus}</p>}
-                            </div>
-
-                            <div className="detail-section">
-                                <h3>Episode Reviews</h3>
-                                <p className="status">For TV series, users rate and review episodes. Season ratings are shown separately.</p>
-                                <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
-                                    Go To Episode Reviews
-                                </Link>
+        <main className="page-full">
+            <div className="detail-hero">
+                <div 
+                    className="detail-hero-bg" 
+                    style={{ backgroundImage: `url(${getPosterUrl(show.poster)})` }} 
+                />
+                <div className="detail-hero-content">
+                    <Link className="back-link hero-back" to="/tvshows">← Back to TV Shows</Link>
+                    {getPosterUrl(show.poster) ? (
+                        <img
+                            className="detail-hero-poster"
+                            src={getPosterUrl(show.poster)}
+                            alt={show.title}
+                        />
+                    ) : (
+                        <div className="detail-hero-poster placeholder">No poster</div>
+                    )}
+                    <div className="detail-hero-info">
+                        <h2 className="detail-hero-title">{show.title}</h2>
+                        <div className="detail-hero-meta">
+                            <span>{show.releaseyear || '—'}</span>
+                            <span>•</span>
+                            <span>{show.languagename || '—'}</span>
+                            <span>•</span>
+                            <span>{show.numberofseasons || 0} Seasons</span>
+                            <span>•</span>
+                            <span>{show.isongoing ? 'Ongoing' : 'Ended'}</span>
+                            <span>•</span>
+                            <div className="detail-hero-rating">
+                                ⭐ {show.rating ? show.rating : 'N/A'}
+                                <small>({show.ratingcount || 0} reviews)</small>
                             </div>
                         </div>
+                        <p className="detail-hero-overview">
+                            {show.description || 'No description available.'}
+                        </p>
+                        
+                        {show.genres?.length > 0 && (
+                            <div className="genre-chips">
+                                {show.genres.map((genre) => (
+                                    <span className="genre-chip glass-chip" key={genre.genreid}>{genre.genrename}</span>
+                                ))}
+                            </div>
+                        )}
+                        
+                        <div className="hero-actions" style={{ marginTop: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                            {user && myLists.length > 0 && (
+                                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '0.3rem 0.5rem', borderRadius: '8px' }}>
+                                    <select className="sleek-dropdown small-dropdown" style={{background: 'rgba(255,255,255,0.9)'}} value={selectedListId} onChange={(event) => setSelectedListId(event.target.value)}>
+                                        {myLists.map((list) => (
+                                            <option key={list.listid} value={list.listid}>{list.listname}</option>
+                                        ))}
+                                    </select>
+                                    <button type="button" className="btn btn-primary btn-sm" onClick={handleAddToList} disabled={addingToList}>
+                                        {addingToList ? 'Adding...' : 'Add to List'}
+                                    </button>
+                                </div>
+                            )}
+                            {listActionStatus && <span className="status inline-status">{listActionStatus}</span>}
+                            
+                            <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`} style={{alignSelf: 'center'}}>
+                                Go To Episode Reviews
+                            </Link>
+                        </div>
                     </div>
+                </div>
+            </div>
 
+            <div className="detail-gridLayout single-col">
+                <div className="detail-main-col">
                     {show.seasons?.length > 0 && (
                         <div className="detail-section">
                             <div className="season-header-row">
@@ -412,7 +371,7 @@ function TVShowDetailsPage() {
                                                     Watch Season Trailer
                                                 </a>
                                                 {seasonTrailerUrl && (
-                                                    <div className="trailer-frame-wrap">
+                                                    <div className="trailer-frame-wrap" style={{marginTop: '1rem'}}>
                                                         <iframe
                                                             className="trailer-frame"
                                                             src={seasonTrailerUrl}
@@ -446,8 +405,6 @@ function TVShowDetailsPage() {
                     {showRatingsModal && show.seasons?.some(s => s.episodes?.length > 0) && (
                         <div className="detail-section">
                             <h3>Episode Ratings</h3>
-                            
-                            {/* Color Legend */}
                             <div className="ratings-legend">
                                 <div className="ratings-legend-title">Rating Scale</div>
                                 <div className="ratings-legend-items">
@@ -465,21 +422,14 @@ function TVShowDetailsPage() {
                                     </div>
                                 </div>
                             </div>
-
                             <div className="ratings-grid-container">
                                 {(() => {
-                                    // Filter seasons that have episodes
                                     const seasonsWithEpisodes = show.seasons.filter(s => s.episodes && s.episodes.length > 0)
-                                    
-                                    if (seasonsWithEpisodes.length === 0) {
-                                        return <p style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>No episode ratings available.</p>
-                                    }
+                                    if (seasonsWithEpisodes.length === 0) return <p style={{ padding: '2rem', textAlign: 'center', color: '#6b7280' }}>No episode ratings available.</p>
                                     
                                     const maxEpisodes = Math.max(...seasonsWithEpisodes.map(s => s.episodes.length))
-                                    
                                     return (
                                         <div className="ratings-grid">
-                                            {/* Header row with season numbers */}
                                             <div className="ratings-grid-header">
                                                 <div className="ratings-grid-cell ratings-grid-season-label"></div>
                                                 {seasonsWithEpisodes.map((season) => (
@@ -488,8 +438,6 @@ function TVShowDetailsPage() {
                                                     </div>
                                                 ))}
                                             </div>
-                                            
-                                            {/* Episode rows */}
                                             {Array.from({ length: maxEpisodes }, (_, episodeIndex) => (
                                                 <div key={episodeIndex} className="ratings-grid-row">
                                                     <div className="ratings-grid-cell ratings-grid-season-label">
@@ -497,20 +445,14 @@ function TVShowDetailsPage() {
                                                     </div>
                                                     {seasonsWithEpisodes.map((season) => {
                                                         const episode = season.episodes[episodeIndex]
-                                                        if (!episode) {
-                                                            return <div key={season.seasonno} className="ratings-grid-cell ratings-grid-empty"></div>
-                                                        }
+                                                        if (!episode) return <div key={season.seasonno} className="ratings-grid-cell ratings-grid-empty"></div>
                                                         const rating = parseFloat(episode.avgrating) || 0
                                                         const { bg: bgColor, text: textColor } = getColorForRating(rating)
-                                                        
                                                         return (
                                                             <div 
                                                                 key={season.seasonno} 
                                                                 className="ratings-grid-cell ratings-grid-rating"
-                                                                style={{ 
-                                                                    backgroundColor: bgColor,
-                                                                    color: textColor
-                                                                }}
+                                                                style={{ backgroundColor: bgColor, color: textColor }}
                                                                 title={`S${season.seasonno}E${episode.episodeno}: ${episode.episodetitle || 'Episode ' + episode.episodeno} - ${rating.toFixed(1)}`}
                                                             >
                                                                 {rating > 0 ? rating.toFixed(1) : '—'}
@@ -529,26 +471,17 @@ function TVShowDetailsPage() {
                     {show.cast?.length > 0 && (
                         <div className="detail-section">
                             <h3>Cast</h3>
-                            <div className="people-grid">
-                                {show.cast.map((person) => (
-                                    <Link
-                                        className="person-card"
-                                        to={`/persons/${person.personid}`}
-                                        key={person.personid}
-                                    >
+                            <div className="people-grid-circular">
+                                {show.cast.slice(0, 10).map((person) => (
+                                    <Link className="person-card-circular" to={`/persons/${person.personid}`} key={person.personid}>
                                         {getProfileUrl(person.picture) ? (
-                                            <img
-                                                className="person-photo"
-                                                src={getProfileUrl(person.picture)}
-                                                alt={person.fullname}
-                                                loading="lazy"
-                                            />
+                                            <img className="person-photo-circular" src={getProfileUrl(person.picture)} alt={person.fullname} loading="lazy" />
                                         ) : (
-                                            <div className="person-photo placeholder">No photo</div>
+                                            <div className="person-photo-circular placeholder">Photo</div>
                                         )}
                                         <div className="person-info">
                                             <h4>{person.fullname}</h4>
-                                            <p>{person.charactername ? `as ${person.charactername}` : 'Actor'}</p>
+                                            <p>{person.charactername ? `${person.charactername}` : 'Actor'}</p>
                                         </div>
                                     </Link>
                                 ))}
@@ -559,22 +492,13 @@ function TVShowDetailsPage() {
                     {show.crew?.length > 0 && (
                         <div className="detail-section">
                             <h3>Crew</h3>
-                            <div className="people-grid">
-                                {show.crew.map((person) => (
-                                    <Link
-                                        className="person-card"
-                                        to={`/persons/${person.personid}`}
-                                        key={`${person.personid}-${person.crewrole}`}
-                                    >
+                            <div className="people-grid-circular">
+                                {show.crew.slice(0, 10).map((person) => (
+                                    <Link className="person-card-circular" to={`/persons/${person.personid}`} key={`${person.personid}-${person.crewrole}`}>
                                         {getProfileUrl(person.picture) ? (
-                                            <img
-                                                className="person-photo"
-                                                src={getProfileUrl(person.picture)}
-                                                alt={person.fullname}
-                                                loading="lazy"
-                                            />
+                                            <img className="person-photo-circular" src={getProfileUrl(person.picture)} alt={person.fullname} loading="lazy" />
                                         ) : (
-                                            <div className="person-photo placeholder">No photo</div>
+                                            <div className="person-photo-circular placeholder">Photo</div>
                                         )}
                                         <div className="person-info">
                                             <h4>{person.fullname}</h4>
@@ -593,50 +517,27 @@ function TVShowDetailsPage() {
                                 {show.studios.map((studio) => {
                                     const logoUrl = getStudioLogoUrl(studio.logourl)
                                     const websiteUrl = getStudioWebsiteUrl(studio.websiteurl)
-
                                     const content = (
                                         <>
                                             {logoUrl ? (
-                                                <img
-                                                    src={logoUrl}
-                                                    alt={studio.studioname}
-                                                    className="studio-logo"
-                                                    loading="lazy"
-                                                />
+                                                <img src={logoUrl} alt={studio.studioname} className="studio-logo" loading="lazy" />
                                             ) : (
-                                                <div className="studio-logo placeholder">
-                                                    No Logo
-                                                </div>
+                                                <div className="studio-logo placeholder">No Logo</div>
                                             )}
                                             <span className="studio-name">{studio.studioname}</span>
                                         </>
                                     )
-
-                                    if (websiteUrl) {
-                                        return (
-                                            <a
-                                                key={studio.studioid}
-                                                className="studio-card studio-link"
-                                                href={websiteUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                title={`Visit ${studio.studioname}`}
-                                            >
-                                                {content}
-                                            </a>
-                                        )
-                                    }
-
-                                    return (
-                                        <div key={studio.studioid} className="studio-card">
+                                    return websiteUrl ? (
+                                        <a key={studio.studioid} className="studio-card studio-link" href={websiteUrl} target="_blank" rel="noreferrer" title={`Visit ${studio.studioname}`}>
                                             {content}
-                                        </div>
+                                        </a>
+                                    ) : (
+                                        <div key={studio.studioid} className="studio-card">{content}</div>
                                     )
                                 })}
                             </div>
                         </div>
                     )}
-
                 </div>
             </div>
         </main>

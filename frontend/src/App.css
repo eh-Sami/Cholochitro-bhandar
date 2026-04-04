@@ -2006,3 +2006,439 @@
   color: #6a7488;
   font-size: 1rem;
 }
+
+/* --- Detail Page Hero Section --- */
+.page-full {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.detail-hero {
+  position: relative;
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+  margin-top: -2rem; /* Touch header */
+  padding: 5rem 10vw;
+  display: flex;
+  color: white;
+  margin-bottom: 3rem;
+  overflow: hidden;
+  align-items: center;
+  min-height: 480px;
+}
+
+.detail-hero-bg {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-size: cover;
+  background-position: center 20%;
+  filter: blur(20px) brightness(0.3);
+  transform: scale(1.1);
+  z-index: 1;
+}
+
+.detail-hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  gap: 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.hero-back {
+  position: absolute;
+  top: -3rem;
+  left: 0;
+  color: rgba(255,255,255,0.7) !important;
+}
+
+.hero-back:hover {
+  color: white !important;
+}
+
+.detail-hero-poster {
+  width: 280px;
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.detail-hero-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.detail-hero-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 3.5rem;
+  font-weight: 800;
+  margin: 0 0 0.8rem 0;
+  text-shadow: 0 2px 12px rgba(0,0,0,0.5);
+  line-height: 1.1;
+}
+
+.detail-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 1.15rem;
+  margin-bottom: 1.5rem;
+  color: rgba(255,255,255,0.85);
+  font-weight: 500;
+}
+
+.detail-hero-rating {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  padding: 0.4rem 1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.detail-hero-rating small {
+  font-weight: 400;
+  opacity: 0.8;
+}
+
+.detail-hero-overview {
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: rgba(255,255,255,0.85);
+  max-width: 800px;
+  margin-bottom: 2rem;
+}
+
+.glass-chip {
+  background: rgba(255,255,255,0.1) !important;
+  color: white !important;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+  backdrop-filter: blur(4px);
+}
+
+/* Detail Grids */
+.detail-gridLayout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 3rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 4rem;
+}
+
+.detail-gridLayout.single-col {
+  grid-template-columns: 1fr;
+  max-width: 1000px;
+}
+
+.detail-main-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.detail-sidebar-col {
+  position: relative;
+}
+
+.sidebar-sticky {
+  position: sticky;
+  top: 100px;
+}
+
+/* Cast Circular Grid */
+.people-grid-circular {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 1.5rem;
+}
+
+.person-card-circular {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: transparent;
+  border: none;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.2s;
+}
+
+.person-card-circular:hover {
+  transform: translateY(-4px);
+}
+
+.person-photo-circular {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 0.75rem;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+  border: 3px solid #fff;
+  transition: border-color 0.2s;
+}
+
+.person-card-circular:hover .person-photo-circular {
+  border-color: var(--accent);
+}
+
+.person-card-circular .placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f3f9;
+  color: #8b99b0;
+  font-size: 0.9rem;
+}
+
+
+@media (max-width: 900px) {
+  .detail-gridLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .detail-hero {
+    padding: 3rem 5vw;
+  }
+  .detail-hero-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1.5rem;
+  }
+  .detail-hero-title {
+    font-size: 2.5rem;
+  }
+  .detail-hero-meta {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .hero-actions {
+    justify-content: center;
+  }
+  .detail-gridLayout {
+    grid-template-columns: 1fr;
+  }
+  .genre-chips {
+    justify-content: center;
+  }
+}
+
+
+/* Episode Accordion Fresh Design */
+.episodes-section {
+  margin-top: 2rem;
+}
+.episodes-header {
+  font-size: 1.5rem;
+  margin-bottom: 1.2rem;
+  color: #1f2635;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+}
+.episodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+.episode-item {
+  border: 1px solid #e1e6f0;
+  border-radius: 20px;
+  background: #ffffff;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 15px rgba(31, 38, 53, 0.03);
+}
+.episode-item:hover {
+  box-shadow: 0 12px 30px rgba(139, 141, 248, 0.1);
+  transform: translateY(-2px);
+  border-color: rgba(139, 141, 248, 0.3);
+}
+.episode-item.open {
+  border-color: var(--accent-strong);
+  box-shadow: 0 16px 40px rgba(139, 141, 248, 0.15);
+  transform: translateY(-2px);
+}
+.episode-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.3s ease;
+}
+.episode-toggle:hover {
+  background: rgba(246, 248, 251, 0.8);
+}
+.episode-item.open .episode-toggle {
+  background: linear-gradient(135deg, rgba(139, 141, 248, 0.06), rgba(67, 212, 194, 0.03));
+  border-bottom: 1px solid rgba(139, 141, 248, 0.15);
+}
+.episode-number {
+  font-weight: 700;
+  margin-right: 0rem;
+  min-width: unset;
+}
+.episode-title {
+  flex-grow: 1;
+  font-size: 1.1rem;
+  color: #1f2635;
+  font-weight: 500;
+}
+.episode-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.episode-toggle-icon.open {
+  transform: rotate(180deg);
+  background: var(--accent-strong);
+  color: #ffffff;
+}
+.episode-body {
+  padding: 1.5rem;
+  background: #ffffff;
+  display: flex;
+  gap: 2rem;
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.episode-image-wrapper {
+  flex-shrink: 0;
+  width: 280px;
+}
+.episode-image {
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  transition: transform 0.3s ease;
+}
+.episode-image:hover {
+  transform: scale(1.02);
+}
+.episode-details {
+  flex-grow: 1;
+}
+.episode-meta {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  color: #4a5568;
+}
+.episode-rating {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: #fffbef;
+  padding: 0.3rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+.episode-description {
+  font-size: 1.05rem;
+  color: #4b5670;
+  line-height: 1.7;
+  margin-bottom: 1.5rem;
+}
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 768px) {
+  .episode-body { flex-direction: column; gap: 1.5rem; }
+  .episode-image-wrapper { width: 100%; }
+}
+
+
+/* Premium Lists Styling */
+.lists-panel {
+  background: white;
+  border: none;
+  border-radius: 24px;
+  padding: 3rem;
+  box-shadow: 0 20px 40px rgba(31, 38, 53, 0.05);
+  margin-bottom: 2rem;
+}
+.lists-panel .section-head h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 2.2rem;
+  color: #1f2635;
+  margin-bottom: 2rem;
+}
+.list-card {
+  background: white;
+  border: 1px solid #edf0f6;
+  border-radius: 20px;
+  padding: 2rem;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+}
+.list-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 30px rgba(120, 122, 247, 0.12);
+  border-color: rgba(139, 141, 248, 0.4);
+}
+.list-card h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+@media (max-width: 768px) {
+  .lists-panel { padding: 1.5rem; }
+  .lists-panel .section-head h3 { font-size: 1.8rem; }
+  .list-card { padding: 1.5rem; }
+}
+
+
+/* Episode Accordion Polish */
+.badge-accent {
+  background: linear-gradient(135deg, var(--accent-soft), rgba(67, 212, 194, 0.15));
+  color: var(--accent-strong);
+  padding: 0.45rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: 0.5px;
+  font-weight: 800;
+}
+.episode-duration-pill {
+  color: #4a5568;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: #f1f4f8;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid #e1e6f0;
+}
+.episode-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.25rem !important;
+  font-weight: 700 !important;
+  color: #1f2635;
+  line-height: 1.3;
+}
+

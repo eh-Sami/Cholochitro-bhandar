@@ -106,6 +106,8 @@ function App() {
         </form>
 
         <nav className="nav">
+          <Link to="/movies" className="nav-btn">Movies</Link>
+          <Link to="/tvshows" className="nav-btn">TV Shows</Link>
           <Link to="/blogs" className="nav-btn">Blogs</Link>
           <Link to="/lists" className="nav-btn">Popular Lists</Link>
           {authUser ? (

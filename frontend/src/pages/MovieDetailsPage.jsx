@@ -174,154 +174,106 @@ function MovieDetailsPage() {
     const trailerEmbedUrl = getYouTubeEmbedUrl(movie.trailerlink)
 
     return (
-        <main className="page">
-            <Link className="back-link" to="/movies">← Back to Movies</Link>
-            <div className="detail">
-                {getPosterUrl(movie.poster) ? (
-                    <img
-                        className="detail-poster"
-                        src={getPosterUrl(movie.poster)}
-                        alt={movie.title}
-                    />
-                ) : (
-                    <div className="detail-poster placeholder">No poster</div>
-                )}
-                <div className="detail-body">
-                    <h2>{movie.title}</h2>
-                    <div className="detail-stack">
-                        <div className="detail-left-panel">
-                            {movie.genres?.length > 0 && (
-                                <div className="detail-section genres-large">
-                                    <h3>Genres</h3>
-                                    <div className="genre-chips">
-                                        {movie.genres.map((genre) => (
-                                            <span className="genre-chip" key={genre.genreid}>{genre.genrename}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="detail-section detail-facts">
-                                <div className="detail-facts-grid detail-facts-row">
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">📅</span>
-                                        <span className="detail-fact-label">Release Year</span>
-                                        <strong className="detail-fact-value">{movie.releaseyear || '—'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">🌐</span>
-                                        <span className="detail-fact-label">Language</span>
-                                        <strong className="detail-fact-value">{movie.languagename || '—'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">⏱️</span>
-                                        <span className="detail-fact-label">Runtime</span>
-                                        <strong className="detail-fact-value">{movie.duration ? `${movie.duration} min` : 'N/A'}</strong>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">⭐</span>
-                                        <span className="detail-fact-label">Rating</span>
-                                        <strong className="detail-fact-value">
-                                            {movie.rating ? `⭐ ${movie.rating}` : 'N/A'}
-                                        </strong>
-                                        <small>{movie.ratingcount || 0} ratings</small>
-                                    </div>
-                                    <div className="detail-fact">
-                                        <span className="detail-fact-icon">🏆</span>
-                                        <span className="detail-fact-label">Top Rank</span>
-                                        <strong className="detail-fact-value">{rank ? `#${rank} / 200` : 'Outside Top 200'}</strong>
-                                    </div>
-                                </div>
+        <main className="page-full">
+            <div className="detail-hero">
+                <div 
+                    className="detail-hero-bg" 
+                    style={{ backgroundImage: `url(${getPosterUrl(movie.poster)})` }} 
+                />
+                <div className="detail-hero-content">
+                    <Link className="back-link hero-back" to="/movies">← Back to Movies</Link>
+                    {getPosterUrl(movie.poster) ? (
+                        <img
+                            className="detail-hero-poster"
+                            src={getPosterUrl(movie.poster)}
+                            alt={movie.title}
+                        />
+                    ) : (
+                        <div className="detail-hero-poster placeholder">No poster</div>
+                    )}
+                    <div className="detail-hero-info">
+                        <h2 className="detail-hero-title">{movie.title}</h2>
+                        <div className="detail-hero-meta">
+                            <span>{movie.releaseyear || '—'}</span>
+                            <span>•</span>
+                            <span>{movie.languagename || '—'}</span>
+                            <span>•</span>
+                            <span>{movie.duration ? `${movie.duration} min` : 'N/A'}</span>
+                            <span>•</span>
+                            <div className="detail-hero-rating">
+                                ⭐ {movie.rating ? movie.rating : 'N/A'}
+                                <small>({movie.ratingcount || 0} reviews)</small>
                             </div>
-
-                            <div className="detail-section">
-                                <h3>Synopsis</h3>
-                                <p className="detail-desc detail-desc-large">
-                                    {movie.description || 'No description available.'}
-                                </p>
+                        </div>
+                        <p className="detail-hero-overview">
+                            {movie.description || 'No description available.'}
+                        </p>
+                        
+                        {movie.genres?.length > 0 && (
+                            <div className="genre-chips">
+                                {movie.genres.map((genre) => (
+                                    <span className="genre-chip glass-chip" key={genre.genreid}>{genre.genrename}</span>
+                                ))}
                             </div>
-
-                            <div className="detail-section">
-                                <h3>Add To List</h3>
-                                {!user && (
-                                    <p className="status">Please <Link to="/login">login</Link> to add this title to your lists.</p>
-                                )}
-
-                                {user && myLists.length === 0 && (
-                                    <p className="status">You have no lists yet. <Link to="/lists">Create one first</Link>.</p>
-                                )}
-
-                                {user && myLists.length > 0 && (
-                                    <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        <select value={selectedListId} onChange={(event) => setSelectedListId(event.target.value)}>
-                                            {myLists.map((list) => (
-                                                <option key={list.listid} value={list.listid}>
-                                                    {list.listname}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button type="button" className="btn btn-primary btn-sm" onClick={handleAddToList} disabled={addingToList}>
-                                            {addingToList ? 'Adding...' : 'Add'}
-                                        </button>
-                                        <Link className="btn btn-ghost btn-sm" to="/lists">Manage Lists</Link>
-                                    </div>
-                                )}
-
-                                {listActionStatus && <p className="status" style={{ marginTop: '0.5rem' }}>{listActionStatus}</p>}
-                            </div>
-
-                            <MediaReviewsSection mediaId={id} />
-
+                        )}
+                        
+                        <div className="hero-actions" style={{ marginTop: '2rem', display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                             {movie.trailerlink && (
-                                <div className="detail-section trailer-section">
-                                    <h3>Trailer</h3>
-                                    <a
-                                        className="btn btn-primary trailer-btn"
-                                        href={movie.trailerlink}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                    >
-                                        Watch Trailer
-                                    </a>
-                                    {trailerEmbedUrl && (
-                                        <div className="trailer-frame-wrap">
-                                            <iframe
-                                                className="trailer-frame"
-                                                src={trailerEmbedUrl}
-                                                title={`${movie.title} trailer`}
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                allowFullScreen
-                                            />
-                                        </div>
-                                    )}
+                                <a className="btn btn-primary trailer-btn" href={movie.trailerlink} target="_blank" rel="noreferrer">
+                                    Watch Trailer
+                                </a>
+                            )}
+                            
+                            {user && myLists.length > 0 && (
+                                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', background: 'rgba(255,255,255,0.1)', padding: '0.3rem 0.5rem', borderRadius: '8px' }}>
+                                    <select className="sleek-dropdown small-dropdown" style={{background: 'rgba(255,255,255,0.9)'}} value={selectedListId} onChange={(event) => setSelectedListId(event.target.value)}>
+                                        {myLists.map((list) => (
+                                            <option key={list.listid} value={list.listid}>{list.listname}</option>
+                                        ))}
+                                    </select>
+                                    <button type="button" className="btn btn-primary btn-sm" onClick={handleAddToList} disabled={addingToList}>
+                                        {addingToList ? 'Adding...' : 'Add to List'}
+                                    </button>
                                 </div>
                             )}
+                            {listActionStatus && <span className="status inline-status">{listActionStatus}</span>}
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <div className="detail-gridLayout">
+                <div className="detail-main-col">
+                    {/* Trailer frame if available */}
+                    {trailerEmbedUrl && (
+                        <div className="detail-section trailer-section">
+                            <h3>Trailer</h3>
+                            <div className="trailer-frame-wrap">
+                                <iframe
+                                    className="trailer-frame"
+                                    src={trailerEmbedUrl}
+                                    title={`${movie.title} trailer`}
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                />
+                            </div>
+                        </div>
+                    )}
 
                     {movie.cast?.length > 0 && (
                         <div className="detail-section">
                             <h3>Cast</h3>
-                            <div className="people-grid">
-                                {movie.cast.map((person) => (
-                                    <Link
-                                        className="person-card"
-                                        to={`/persons/${person.personid}`}
-                                        key={person.personid}
-                                    >
+                            <div className="people-grid-circular">
+                                {movie.cast.slice(0, 10).map((person) => (
+                                    <Link className="person-card-circular" to={`/persons/${person.personid}`} key={person.personid}>
                                         {getProfileUrl(person.picture) ? (
-                                            <img
-                                                className="person-photo"
-                                                src={getProfileUrl(person.picture)}
-                                                alt={person.fullname}
-                                                loading="lazy"
-                                            />
+                                            <img className="person-photo-circular" src={getProfileUrl(person.picture)} alt={person.fullname} loading="lazy" />
                                         ) : (
-                                            <div className="person-photo placeholder">No photo</div>
+                                            <div className="person-photo-circular placeholder">Photo</div>
                                         )}
                                         <div className="person-info">
                                             <h4>{person.fullname}</h4>
-                                            <p>{person.charactername ? `as ${person.charactername}` : 'Actor'}</p>
+                                            <p>{person.charactername ? `${person.charactername}` : 'Actor'}</p>
                                         </div>
                                     </Link>
                                 ))}
@@ -332,22 +284,13 @@ function MovieDetailsPage() {
                     {movie.crew?.length > 0 && (
                         <div className="detail-section">
                             <h3>Crew</h3>
-                            <div className="people-grid">
-                                {movie.crew.map((person) => (
-                                    <Link
-                                        className="person-card"
-                                        to={`/persons/${person.personid}`}
-                                        key={`${person.personid}-${person.crewrole}`}
-                                    >
+                            <div className="people-grid-circular">
+                                {movie.crew.slice(0, 10).map((person) => (
+                                    <Link className="person-card-circular" to={`/persons/${person.personid}`} key={`${person.personid}-${person.crewrole}`}>
                                         {getProfileUrl(person.picture) ? (
-                                            <img
-                                                className="person-photo"
-                                                src={getProfileUrl(person.picture)}
-                                                alt={person.fullname}
-                                                loading="lazy"
-                                            />
+                                            <img className="person-photo-circular" src={getProfileUrl(person.picture)} alt={person.fullname} loading="lazy" />
                                         ) : (
-                                            <div className="person-photo placeholder">No photo</div>
+                                            <div className="person-photo-circular placeholder">Photo</div>
                                         )}
                                         <div className="person-info">
                                             <h4>{person.fullname}</h4>
@@ -358,57 +301,42 @@ function MovieDetailsPage() {
                             </div>
                         </div>
                     )}
-
+                    
                     {movie.studios?.length > 0 && (
-                        <div className="detail-section">
+                        <div className="detail-section" style={{marginBottom: '3rem'}}>
                             <h3>Studios</h3>
                             <div className="studios-grid">
                                 {movie.studios.map((studio) => {
                                     const logoUrl = getStudioLogoUrl(studio.logourl)
                                     const websiteUrl = getStudioWebsiteUrl(studio.websiteurl)
-
                                     const content = (
                                         <>
                                             {logoUrl ? (
-                                                <img
-                                                    src={logoUrl}
-                                                    alt={studio.studioname}
-                                                    className="studio-logo"
-                                                    loading="lazy"
-                                                />
+                                                <img src={logoUrl} alt={studio.studioname} className="studio-logo" loading="lazy" />
                                             ) : (
-                                                <div className="studio-logo placeholder">
-                                                    No Logo
-                                                </div>
+                                                <div className="studio-logo placeholder">No Logo</div>
                                             )}
                                             <span className="studio-name">{studio.studioname}</span>
                                         </>
                                     )
-
-                                    if (websiteUrl) {
-                                        return (
-                                            <a
-                                                key={studio.studioid}
-                                                className="studio-card studio-link"
-                                                href={websiteUrl}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                title={`Visit ${studio.studioname}`}
-                                            >
-                                                {content}
-                                            </a>
-                                        )
-                                    }
-
-                                    return (
-                                        <div key={studio.studioid} className="studio-card">
+                                    return websiteUrl ? (
+                                        <a key={studio.studioid} className="studio-card studio-link" href={websiteUrl} target="_blank" rel="noreferrer" title={`Visit ${studio.studioname}`}>
                                             {content}
-                                        </div>
+                                        </a>
+                                    ) : (
+                                        <div key={studio.studioid} className="studio-card">{content}</div>
                                     )
                                 })}
                             </div>
                         </div>
                     )}
+                </div>
+
+                {/* Right Align Review Column */}
+                <div className="detail-sidebar-col">
+                    <div className="sidebar-sticky">
+                        <MediaReviewsSection mediaId={id} />
+                    </div>
                 </div>
             </div>
         </main>

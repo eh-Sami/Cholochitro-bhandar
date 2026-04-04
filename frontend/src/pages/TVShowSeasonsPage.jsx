@@ -111,7 +111,7 @@ function TVShowSeasonsPage() {
                 <div className="detail-body">
                     <h2>{show.title} Seasons & Episodes</h2>
                     <p className="detail-meta">
-                        {show.releaseyear || '—'} · {show.languagename || '—'}
+                        {show.releaseyear || '—'}
                     </p>
 
                     {show.seasons?.length > 0 && (
@@ -199,16 +199,25 @@ function TVShowSeasonsPage() {
                                                         const episodeKey = `${selectedSeason.seasonno}-${episode.episodeno}`
                                                         const isOpen = openEpisodes.has(episodeKey)
                                                         return (
-                                                            <div key={episode.episodeno} className="episode-item">
+                                                            <div key={episode.episodeno} className={`episode-item ${isOpen ? 'open' : ''}`}>
                                                                 <button
                                                                     type="button"
                                                                     className="episode-toggle"
                                                                     onClick={() => toggleEpisode(episodeKey)}
                                                                     aria-expanded={isOpen}
                                                                 >
-                                                                    <span className="episode-number">EP {episode.episodeno}</span>
-                                                                    <span className="episode-title">{episode.episodetitle || `Episode ${episode.episodeno}`}</span>
-                                                                    <span className="episode-toggle-icon">{isOpen ? '-' : '+'}</span>
+                                                                    <div style={{ display: 'flex', flexGrow: 1, alignItems: 'center', gap: '1.5rem' }}>
+                                                                        <span className="episode-number badge-accent">EP {episode.episodeno}</span>
+                                                                        <span className="episode-title">{episode.episodetitle || `Episode ${episode.episodeno}`}</span>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexShrink: 0 }}>
+                                                                        {episode.duration && <span className="episode-duration-pill">{episode.duration} min</span>}
+                                                                        <span className={`episode-toggle-icon ${isOpen ? 'open' : ''}`}>
+                                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                                                <polyline points="6 9 12 15 18 9"></polyline>
+                                                                            </svg>
+                                                                        </span>
+                                                                    </div>
                                                                 </button>
                                                                 {isOpen && (
                                                                     <div className="episode-body">
@@ -223,11 +232,8 @@ function TVShowSeasonsPage() {
                                                                         )}
                                                                         <div className="episode-details">
                                                                             <div className="episode-meta">
-                                                                                {episode.duration && (
-                                                                                    <span className="episode-duration">⏱️ {episode.duration} min</span>
-                                                                                )}
                                                                                 {episode.avgrating && (
-                                                                                    <span className="episode-rating">⭐ {episode.avgrating}</span>
+                                                                                    <span className="episode-rating"><span style={{color: '#f59e0b'}}>★</span> {episode.avgrating}</span>
                                                                                 )}
                                                                             </div>
                                                                             {episode.description && (
