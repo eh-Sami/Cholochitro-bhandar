@@ -27,7 +27,6 @@ function App() {
   const [category, setCategory] = useState('all')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
-
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -36,6 +35,16 @@ function App() {
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'cb_auth_token' || e.key === 'cb_auth_user' || e.key === null) {
+        setAuthUser(getStoredAuth().user)
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   const dropdownOptions = [
