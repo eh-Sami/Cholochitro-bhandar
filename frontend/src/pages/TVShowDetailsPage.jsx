@@ -276,7 +276,7 @@ function TVShowDetailsPage() {
                     style={{ backgroundImage: `url(${getPosterUrl(show.poster)})` }} 
                 />
                 <div className="detail-hero-content">
-                    <Link className="back-link hero-back" to="/tvshows">← Back to TV Shows</Link>
+                    <Link className="back-link hero-back" to="/tvshows">TV Shows</Link>
                     {getPosterUrl(show.poster) ? (
                         <img
                             className="detail-hero-poster"

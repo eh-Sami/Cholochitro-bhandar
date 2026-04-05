@@ -56,7 +56,7 @@ function PersonDetailsPage() {
                     style={{ backgroundImage: `url(${getProfileUrl(person.picture)})` }} 
                 />
                 <div className="detail-hero-content">
-                    <Link className="back-link hero-back" to="/celebrities">← Back to Celebrities</Link>
+                    <Link className="back-link hero-back" to="/celebrities">Celebrities</Link>
                     {getProfileUrl(person.picture) ? (
                         <img
                             className="detail-hero-poster"

@@ -99,7 +99,7 @@ function TVShowSeasonsPage() {
 
     return (
         <main className="page">
-            <Link className="back-link" to={`/tvshows/${id}`}>← Back to TV Show</Link>
+            <Link className="back-link" to={`/tvshows/${id}`}>TV Show</Link>
             <div className="detail">
                 {getPosterUrl(show.poster) ? (
                     <img

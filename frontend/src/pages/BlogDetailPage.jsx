@@ -524,7 +524,7 @@ export default function BlogDetailPage() {
     <div className="page blogs-page">
       
       <button className="btn btn-ghost hero-back" onClick={() => navigate('/blogs')} style={{ marginTop: '0', marginBottom: '1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', position: 'static', color: '#6a7488' }}>
-        <ArrowLeft size={16} /> Back to Blogs
+        <ArrowLeft size={16} />Blogs
       </button>
 
       <div style={{ background: 'white', border: 'none', borderRadius: '24px', padding: '3rem', marginBottom: '3rem', boxShadow: '0 20px 40px rgba(31, 38, 53, 0.05)' }}>
