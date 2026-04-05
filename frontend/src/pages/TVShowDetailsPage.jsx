@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { BarChart3, CalendarDays, ListVideo, Star } from 'lucide-react'
 import { getAuthToken, getStoredAuth } from '../utils/auth'
 
 const API_BASE = 'http://localhost:3000'
@@ -90,6 +91,37 @@ const getColorForRating = (rating) => {
         bg: rgbToHex(rgb),
         text: getTextColorForBackground(rgb)
     }
+}
+
+function SeasonBadge({ icon: Icon, children, tone = 'default' }) {
+    return (
+        <span className={`tv-season-badge ${tone === 'rating' ? 'is-rating' : ''}`}>
+            {Icon && <Icon size={14} aria-hidden="true" />}
+            {children}
+        </span>
+    )
+}
+
+function SeasonCard({ children }) {
+    return <section className="tv-season-card">{children}</section>
+}
+
+function SeasonActionButton({ as = 'button', children, variant = 'secondary', ...props }) {
+    const className = `tv-season-btn ${variant === 'primary' ? 'tv-season-btn-primary' : 'tv-season-btn-secondary'}`
+
+    if (as === 'link') {
+        return (
+            <Link className={className} {...props}>
+                {children}
+            </Link>
+        )
+    }
+
+    return (
+        <button className={className} {...props}>
+            {children}
+        </button>
+    )
 }
 
 function TVShowDetailsPage() {
@@ -329,6 +361,7 @@ function TVShowDetailsPage() {
                                 </div>
                             </div>
 
+
                             {selectedSeason && (() => {
                                 const seasonTrailerUrl = getYouTubeEmbedUrl(selectedSeason.trailerlink)
                                 const episodeCount = selectedSeason.episodes?.length || selectedSeason.episodecount || 0
@@ -336,34 +369,37 @@ function TVShowDetailsPage() {
                                 const avgDuration = episodeCount > 0 ? Math.round(totalDuration / episodeCount) : 0
 
                                 return (
-                                    <div className="season-panel">
-                                        <div className="season-panel-header">
-                                            <h4 className="season-panel-title">
+                                    <SeasonCard>
+                                        <div className="tv-season-head">
+                                            <h4 className="tv-season-title">
                                                 Season {selectedSeason.seasonno}{selectedSeason.seasontitle ? `: ${selectedSeason.seasontitle}` : ''}
                                             </h4>
-                                            <div className="season-stats">
-                                                {episodeCount > 0 && (
-                                                    <span className="season-episodes">{episodeCount} Episodes</span>
-                                                )}
-                                                {avgDuration > 0 && (
-                                                    <span className="season-duration">~{avgDuration} min/ep</span>
-                                                )}
-                                                <span className="season-rating">Global ⭐ {globalSeasonRating}</span>
-                                            </div>
+                                            {selectedSeason.releasedate && (
+                                                <div className="tv-season-release">
+                                                    <CalendarDays size={14} aria-hidden="true" />
+                                                    Released {new Date(selectedSeason.releasedate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                                                </div>
+                                            )}
                                         </div>
 
-                                        {selectedSeason.releasedate && (
-                                            <p className="season-meta">Released: {new Date(selectedSeason.releasedate).toLocaleDateString()}</p>
-                                        )}
+                                        <div className="tv-season-badges">
+                                            {episodeCount > 0 && (
+                                                <SeasonBadge>{episodeCount} Episodes</SeasonBadge>
+                                            )}
+                                            {avgDuration > 0 && (
+                                                <SeasonBadge>~{avgDuration} min/ep</SeasonBadge>
+                                            )}
+                                            <SeasonBadge tone="rating" icon={Star}>Rating {globalSeasonRating}</SeasonBadge>
+                                        </div>
 
                                         {selectedSeason.description && (
-                                            <p className="season-desc">{selectedSeason.description}</p>
+                                            <p className="tv-season-desc">{selectedSeason.description}</p>
                                         )}
 
                                         {selectedSeason.trailerlink && (
                                             <div className="season-trailer">
                                                 <a
-                                                    className="btn btn-secondary btn-sm"
+                                                    className="tv-season-trailer-link"
                                                     href={selectedSeason.trailerlink}
                                                     target="_blank"
                                                     rel="noreferrer"
@@ -383,20 +419,25 @@ function TVShowDetailsPage() {
                                                 )}
                                             </div>
                                         )}
-                                        <div className="season-actions">
-                                            <Link className="btn btn-primary btn-sm" to={`/tvshows/${id}/seasons`}>
+
+                                        <div className="tv-season-divider" aria-hidden="true" />
+
+                                        <div className="tv-season-actions">
+                                            <SeasonActionButton as="link" variant="primary" to={`/tvshows/${id}/seasons`}>
+                                                <ListVideo size={16} aria-hidden="true" />
                                                 View episodes
-                                            </Link>
+                                            </SeasonActionButton>
                                             {show.seasons?.some(s => s.episodes?.length > 0) && (
-                                                <button 
-                                                    className="btn btn-secondary btn-sm"
+                                                <SeasonActionButton
+                                                    variant="secondary"
                                                     onClick={() => setShowRatingsModal(!showRatingsModal)}
                                                 >
-                                                    📊 {showRatingsModal ? 'Hide' : 'Show'} Episode Ratings
-                                                </button>
+                                                    <BarChart3 size={16} aria-hidden="true" />
+                                                    {showRatingsModal ? 'Hide' : 'Show'} Episode Ratings
+                                                </SeasonActionButton>
                                             )}
                                         </div>
-                                    </div>
+                                    </SeasonCard>
                                 )
                             })()}
                         </div>

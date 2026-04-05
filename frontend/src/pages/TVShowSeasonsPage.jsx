@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { BarChart3, CalendarDays, Star } from 'lucide-react'
 import EpisodeReviewsSection from '../components/EpisodeReviewsSection'
 
 const API_BASE = 'http://localhost:3000'
@@ -38,6 +39,7 @@ function TVShowSeasonsPage() {
     const [error, setError] = useState('')
     const [selectedSeasonNo, setSelectedSeasonNo] = useState(null)
     const [openEpisodes, setOpenEpisodes] = useState(new Set())
+    const [showEpisodeRatings, setShowEpisodeRatings] = useState(false)
 
     const toggleEpisode = (episodeKey) => {
         setOpenEpisodes((prev) => {
@@ -143,28 +145,35 @@ function TVShowSeasonsPage() {
                                 const avgDuration = episodeCount > 0 ? Math.round(totalDuration / episodeCount) : 0
 
                                 return (
-                                    <div className="season-panel">
-                                        <div className="season-panel-header">
-                                            <h4 className="season-panel-title">
+                                    <div className="tvs-season-card">
+                                        <div className="tvs-season-head">
+                                            <h4 className="tvs-season-title">
                                                 Season {selectedSeason.seasonno}{selectedSeason.seasontitle ? `: ${selectedSeason.seasontitle}` : ''}
                                             </h4>
-                                            <div className="season-stats">
-                                                {episodeCount > 0 && (
-                                                    <span className="season-episodes">{episodeCount} Episodes</span>
-                                                )}
-                                                {avgDuration > 0 && (
-                                                    <span className="season-duration">~{avgDuration} min/ep</span>
-                                                )}
-                                                <span className="season-rating">Rating ⭐ {globalSeasonRating}</span>
-                                            </div>
+
+                                            {selectedSeason.releasedate && (
+                                                <span className="tvs-season-release-badge">
+                                                    <CalendarDays size={14} aria-hidden="true" />
+                                                    Released {new Date(selectedSeason.releasedate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                                                </span>
+                                            )}
                                         </div>
 
-                                        {selectedSeason.releasedate && (
-                                            <p className="season-meta">Released: {new Date(selectedSeason.releasedate).toLocaleDateString()}</p>
-                                        )}
+                                        <div className="tvs-season-badges">
+                                                {episodeCount > 0 && (
+                                                    <span className="tvs-meta-badge">{episodeCount} Episodes</span>
+                                                )}
+                                                {avgDuration > 0 && (
+                                                    <span className="tvs-meta-badge">~{avgDuration} min/ep</span>
+                                                )}
+                                                <span className="tvs-meta-badge tvs-rating-badge">
+                                                    <Star size={13} aria-hidden="true" />
+                                                    Rating {globalSeasonRating}
+                                                </span>
+                                        </div>
 
                                         {selectedSeason.description && (
-                                            <p className="season-desc">{selectedSeason.description}</p>
+                                            <p className="tvs-season-desc">{selectedSeason.description}</p>
                                         )}
 
                                         {selectedSeason.trailerlink && (
@@ -191,26 +200,41 @@ function TVShowSeasonsPage() {
                                             </div>
                                         )}
 
+                                        <div className="tvs-season-actions">
+                                            <Link className="tvs-btn tvs-btn-primary" to={`/tvshows/${id}/seasons`}>
+                                                View Episodes
+                                            </Link>
+                                            <button
+                                                type="button"
+                                                className="tvs-btn tvs-btn-secondary"
+                                                onClick={() => setShowEpisodeRatings((prev) => !prev)}
+                                            >
+                                                <BarChart3 size={16} aria-hidden="true" />
+                                                {showEpisodeRatings ? 'Hide Episode Ratings' : 'Show Episode Ratings'}
+                                            </button>
+                                        </div>
+
                                         {selectedSeason.episodes?.length > 0 && (
-                                            <div className="episodes-section">
+                                            <div className="episodes-section tvs-episodes">
                                                 <h5 className="episodes-header">Episodes ({selectedSeason.episodes.length})</h5>
                                                 <div className="episodes-list">
                                                     {selectedSeason.episodes.map((episode) => {
                                                         const episodeKey = `${selectedSeason.seasonno}-${episode.episodeno}`
                                                         const isOpen = openEpisodes.has(episodeKey)
                                                         return (
-                                                            <div key={episode.episodeno} className={`episode-item ${isOpen ? 'open' : ''}`}>
+                                                            <article key={episode.episodeno} className={`episode-item tvs-episode-item ${isOpen ? 'open' : ''}`}>
                                                                 <button
                                                                     type="button"
-                                                                    className="episode-toggle"
+                                                                    className="episode-header"
                                                                     onClick={() => toggleEpisode(episodeKey)}
                                                                     aria-expanded={isOpen}
                                                                 >
-                                                                    <div style={{ display: 'flex', flexGrow: 1, alignItems: 'center', gap: '1.5rem' }}>
+                                                                    <div className="header-left">
                                                                         <span className="episode-number badge-accent">EP {episode.episodeno}</span>
                                                                         <span className="episode-title">{episode.episodetitle || `Episode ${episode.episodeno}`}</span>
                                                                     </div>
-                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexShrink: 0 }}>
+
+                                                                    <div className="header-right">
                                                                         {episode.duration && <span className="episode-duration-pill">{episode.duration} min</span>}
                                                                         <span className={`episode-toggle-icon ${isOpen ? 'open' : ''}`}>
                                                                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -219,37 +243,39 @@ function TVShowSeasonsPage() {
                                                                         </span>
                                                                     </div>
                                                                 </button>
+
                                                                 {isOpen && (
                                                                     <div className="episode-body">
-                                                                        {episode.stillpath && (
-                                                                            <div className="episode-image-wrapper">
-                                                                                <img 
-                                                                                    className="episode-image" 
-                                                                                    src={getStillUrl(episode.stillpath)} 
-                                                                                    alt={episode.episodetitle || `Episode ${episode.episodeno}`}
-                                                                                />
-                                                                            </div>
-                                                                        )}
-                                                                        <div className="episode-details">
-                                                                            <div className="episode-meta">
-                                                                                {episode.avgrating && (
-                                                                                    <span className="episode-rating"><span style={{color: '#f59e0b'}}>★</span> {episode.avgrating}</span>
+                                                                        <div className="episode-content">
+                                                                            <div className="left-column">
+                                                                                {episode.stillpath && (
+                                                                                    <div className="episode-image-wrapper">
+                                                                                        <img 
+                                                                                            className="episode-image" 
+                                                                                            src={getStillUrl(episode.stillpath)} 
+                                                                                            alt={episode.episodetitle || `Episode ${episode.episodeno}`}
+                                                                                        />
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {episode.description && (
+                                                                                    <p className="episode-description">{episode.description}</p>
                                                                                 )}
                                                                             </div>
-                                                                            {episode.description && (
-                                                                                <p className="episode-description">{episode.description}</p>
-                                                                            )}
-                                                                            <div className="episode-actions">
-                                                                                <EpisodeReviewsSection
-                                                                                    mediaId={id}
-                                                                                    seasonNo={selectedSeason.seasonno}
-                                                                                    episodeNo={episode.episodeno}
-                                                                                />
+
+                                                                            <div className="right-column">
+                                                                                <div className="episode-actions">
+                                                                                    <EpisodeReviewsSection
+                                                                                        mediaId={id}
+                                                                                        seasonNo={selectedSeason.seasonno}
+                                                                                        episodeNo={episode.episodeno}
+                                                                                    />
+                                                                                </div>
                                                                             </div>
                                                                         </div>
                                                                     </div>
                                                                 )}
-                                                            </div>
+                                                            </article>
                                                         )
                                                     })}
                                                 </div>

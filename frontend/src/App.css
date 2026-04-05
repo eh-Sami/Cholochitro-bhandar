@@ -977,6 +977,157 @@
   gap: 0.75rem;
 }
 
+.lists-create-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.lists-create-card {
+  width: 100%;
+  max-width: 36rem;
+  padding: 1.75rem;
+  border-radius: 1.25rem;
+  background: linear-gradient(165deg, #ffffff 0%, #f9fbff 100%);
+  border: 1px solid #e6ebf5;
+  box-shadow: 0 14px 32px rgba(31, 38, 53, 0.08);
+}
+
+.lists-create-head {
+  margin-bottom: 1rem;
+}
+
+.lists-create-head h3 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  color: #1f2635;
+  letter-spacing: 0.01em;
+}
+
+.lists-create-head p {
+  margin: 0.5rem 0 0;
+  color: #6b7488;
+  font-size: 0.93rem;
+}
+
+.lists-create-card .lists-create-form {
+  gap: 0.9rem;
+}
+
+.lists-field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #768199;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.lists-create-card .lists-create-form input[type='text'] {
+  width: 100%;
+  border: 1px solid #d8deeb;
+  border-radius: 0.8rem;
+  padding: 0.75rem 0.9rem;
+  background: #ffffff;
+  color: #20293a;
+  font-size: 0.98rem;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, background-color 0.22s ease;
+}
+
+.lists-create-card .lists-create-form input[type='text']::placeholder {
+  color: #9ba5ba;
+}
+
+.lists-create-card .lists-create-form input[type='text']:focus {
+  outline: none;
+  border-color: #8b8df8;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(139, 141, 248, 0.18);
+}
+
+.lists-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #4f5b72;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.lists-checkbox-row input[type='checkbox'] {
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 0.28rem;
+  accent-color: #787af7;
+  cursor: pointer;
+}
+
+.lists-create-submit {
+  align-self: flex-start;
+  border: none;
+  border-radius: 0.78rem;
+  padding: 0.65rem 1.05rem;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #4f7cff 0%, #7a60ff 100%);
+  box-shadow: 0 10px 22px rgba(79, 124, 255, 0.28);
+  cursor: pointer;
+  transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
+}
+
+.lists-create-submit:hover {
+  transform: translateY(-1px) scale(1.01);
+  filter: brightness(1.05);
+  box-shadow: 0 14px 28px rgba(79, 124, 255, 0.33);
+}
+
+.lists-create-submit:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
+  filter: none;
+}
+
+.lists-divider {
+  height: 1px;
+  width: min(100%, 68rem);
+  margin: 0.2rem auto 1rem;
+  background: linear-gradient(90deg, rgba(214, 220, 237, 0), rgba(214, 220, 237, 0.95), rgba(214, 220, 237, 0));
+}
+
+.lists-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid #e0e6f2;
+  background: #f8faff;
+  color: #4d5a72;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.lists-spinner {
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 2px solid #d2daf0;
+  border-top-color: #6f7af7;
+  border-radius: 50%;
+  animation: listsSpin 0.8s linear infinite;
+}
+
+@keyframes listsSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .lists-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -1030,6 +1181,11 @@
   .lists-hero {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .lists-create-card {
+    padding: 1.2rem;
+    border-radius: 1rem;
   }
 }
 
@@ -1683,6 +1839,517 @@
   gap: 0.75rem;
   margin-top: 1rem;
   flex-wrap: wrap;
+}
+
+/* TV show seasons: scoped modern card + controls */
+.tv-season-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.tv-season-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7488;
+  font-weight: 700;
+}
+
+.tv-season-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.tv-season-tab {
+  border: 1px solid #d9e0ef;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #2e3a52;
+  font-size: 0.83rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.52rem 0.86rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.tv-season-tab:hover {
+  border-color: #93a5ff;
+  background: #f7f9ff;
+  box-shadow: 0 4px 12px rgba(104, 125, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.tv-season-tab.active {
+  background: linear-gradient(135deg, #4f7cff 0%, #6366f1 100%);
+  border-color: #4f7cff;
+  color: #ffffff;
+  box-shadow: 0 8px 16px rgba(79, 124, 255, 0.25);
+}
+
+.tv-season-card {
+  border: 1px solid #e4e9f5;
+  border-radius: 1.15rem;
+  background: linear-gradient(160deg, #ffffff 0%, #f9fbff 100%);
+  padding: 1.4rem;
+  margin-top: 1rem;
+  box-shadow: 0 12px 28px rgba(22, 34, 62, 0.08);
+  transition: transform 0.24s ease, box-shadow 0.24s ease;
+}
+
+.tv-season-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(22, 34, 62, 0.11);
+}
+
+.tv-season-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.tv-season-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1f2635;
+  letter-spacing: 0.01em;
+}
+
+.tv-season-release {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f5;
+  background: #f8faff;
+  color: #6a7488;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.tv-season-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 0.95rem;
+}
+
+.tv-season-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.62rem;
+  border-radius: 999px;
+  border: 1px solid #e1e6f2;
+  background: #f6f8fc;
+  color: #4c5872;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.tv-season-badge.is-rating {
+  border-color: #ffe3a1;
+  background: #fff7e6;
+  color: #7a4b04;
+}
+
+.tv-season-desc {
+  margin: 0.95rem 0 0;
+  color: #495672;
+  font-size: 0.95rem;
+  line-height: 1.65;
+}
+
+.tv-season-trailer-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #3f5fdb;
+  border: 1px solid #d8e1fb;
+  background: #f4f8ff;
+  padding: 0.45rem 0.72rem;
+  border-radius: 0.75rem;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.tv-season-trailer-link:hover {
+  border-color: #b9c9ff;
+  background: #eaf1ff;
+}
+
+.tv-season-divider {
+  height: 1px;
+  margin: 1.05rem 0 0.95rem;
+  background: linear-gradient(90deg, rgba(221, 229, 244, 0) 0%, #dde5f4 50%, rgba(221, 229, 244, 0) 100%);
+}
+
+.tv-season-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+/* TV Show seasons page scoped styling */
+.tvs-season-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tvs-season-label {
+  font-size: 0.78rem;
+  color: #667085;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tvs-season-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.tvs-season-tab {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  border-radius: 999px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tvs-season-tab:hover {
+  border-color: #2563eb;
+  color: #2563eb;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.14);
+}
+
+.tvs-season-tab.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
+}
+
+.tvs-season-card {
+  margin-top: 1rem;
+  padding: 1.6rem;
+  border-radius: 1rem;
+  border: 1px solid #f1f5f9;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.04) 0%, rgba(255, 255, 255, 0) 28%), #ffffff;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.09);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.tvs-season-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.14);
+}
+
+.tvs-season-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.tvs-season-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.tvs-season-release-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #64748b;
+  border-radius: 999px;
+  padding: 0.32rem 0.66rem;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.tvs-season-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.tvs-meta-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  padding: 0.26rem 0.64rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.tvs-rating-badge {
+  background: rgba(245, 158, 11, 0.14);
+  color: #92400e;
+}
+
+.tvs-season-desc {
+  margin: 0.9rem 0;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.tvs-season-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.tvs-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 0.75rem;
+  padding: 0.58rem 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.tvs-btn-primary {
+  color: #ffffff;
+  background: linear-gradient(to right, #2563eb, #4f46e5);
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.25);
+}
+
+.tvs-btn-primary:hover {
+  filter: brightness(1.06);
+  transform: scale(1.02);
+  box-shadow: 0 14px 24px rgba(37, 99, 235, 0.3);
+}
+
+.tvs-btn-secondary {
+  border-color: #cbd5e1;
+  background: #ffffff;
+  color: #334155;
+}
+
+.tvs-btn-secondary:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.tvs-inline-episode-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #92400e;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Scoped episode accordion layout for TVShowSeasonsPage */
+.tvs-episodes .tvs-episode-item {
+  display: block;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.tvs-episodes .tvs-episode-item:hover,
+.tvs-episodes .tvs-episode-item.open {
+  transform: none;
+}
+
+.tvs-episodes .episode-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 16px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tvs-episodes .header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tvs-episodes .header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.tvs-episodes .episode-title {
+  margin: 0;
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tvs-episodes .episode-body {
+  display: block;
+  gap: 0;
+  animation: none;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-bottom: 16px;
+}
+
+.tvs-episodes .episode-content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+.tvs-episodes .left-column,
+.tvs-episodes .right-column {
+  grid-column: span 12;
+}
+
+.tvs-episodes .episode-image {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.tvs-episodes .episode-image-wrapper {
+  width: 100%;
+  flex-shrink: 1;
+  margin-bottom: 12px;
+}
+
+.tvs-episodes .episode-description {
+  margin: 0;
+  color: #475569;
+  line-height: 1.7;
+}
+
+.tvs-episodes .right-column .episode-meta {
+  margin-bottom: 12px;
+}
+
+@media (min-width: 768px) {
+  .tvs-episodes .episode-content {
+    grid-template-columns: repeat(12, 1fr);
+  }
+
+  .tvs-episodes .left-column {
+    grid-column: span 7;
+  }
+
+  .tvs-episodes .right-column {
+    grid-column: span 5;
+  }
+}
+
+@media (max-width: 760px) {
+  .tvs-episodes .episode-header {
+    align-items: flex-start;
+  }
+
+  .tvs-episodes .header-right {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 760px) {
+  .tvs-season-card {
+    padding: 1.1rem;
+  }
+
+  .tvs-season-title {
+    font-size: 1.25rem;
+  }
+}
+
+.tv-season-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  border-radius: 0.8rem;
+  padding: 0.6rem 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.tv-season-btn-primary {
+  color: #ffffff;
+  background: linear-gradient(135deg, #3f7bff 0%, #5f61f6 100%);
+  box-shadow: 0 10px 22px rgba(72, 100, 255, 0.3);
+}
+
+.tv-season-btn-primary:hover {
+  filter: brightness(1.06);
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 14px 28px rgba(72, 100, 255, 0.35);
+}
+
+.tv-season-btn-secondary {
+  color: #3d4f7b;
+  border-color: #d4deef;
+  background: #f7faff;
+}
+
+.tv-season-btn-secondary:hover {
+  border-color: #b8c7e6;
+  background: #eef4ff;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 760px) {
+  .tv-season-card {
+    padding: 1.05rem;
+  }
+
+  .tv-season-title {
+    font-size: 1.2rem;
+  }
+
+  .tv-season-actions {
+    width: 100%;
+  }
 }
 
 .auth-page {

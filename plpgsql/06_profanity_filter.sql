@@ -1,8 +1,3 @@
--- ─────────────────────────────────────────────
--- PROFANITY / SLANG FILTER
--- Run ONCE after projectSchema.sql
--- ─────────────────────────────────────────────
-
 -- 1. Table to hold banned words (easy to manage without code changes)
 CREATE TABLE IF NOT EXISTS Banned_Words (
     Word VARCHAR(100) PRIMARY KEY

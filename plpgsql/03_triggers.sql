@@ -1,8 +1,3 @@
--- ─────────────────────────────────────────────
--- ALL TRIGGER DEFINITIONS
--- Run ONCE after 01_rating_functions.sql and 05_utilities.sql
--- ─────────────────────────────────────────────
-
 -- ═══════════════════════════════════════════════
 -- RATING TRIGGERS (from 01_rating_functions.sql)
 -- ═══════════════════════════════════════════════
