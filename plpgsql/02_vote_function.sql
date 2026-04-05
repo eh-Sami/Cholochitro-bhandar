@@ -1,9 +1,3 @@
--- ─────────────────────────────────────────────
--- GENERIC VOTE TOGGLE FUNCTION
--- Handles upvote/downvote for both Blogs and Comments
--- Run ONCE after projectSchema.sql
--- ─────────────────────────────────────────────
-
 CREATE OR REPLACE FUNCTION fn_toggle_vote(
     p_target_type  TEXT,       -- 'blog' or 'comment'
     p_target_id    INT,

@@ -1,12 +1,3 @@
--- ─────────────────────────────────────────────
--- RATING RECALCULATION FUNCTIONS
--- Run ONCE after projectSchema.sql
--- ─────────────────────────────────────────────
-
--- ═══════════════════════════════════════════════
--- 1. Auto-Recalculate Movie Ratings
--- Fires on Review INSERT/UPDATE/DELETE for Movie reviews
--- ═══════════════════════════════════════════════
 
 CREATE OR REPLACE FUNCTION fn_refresh_movie_rating()
 RETURNS TRIGGER AS $$

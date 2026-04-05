@@ -1,8 +1,3 @@
--- ─────────────────────────────────────────────
--- STORED PROCEDURES
--- Run ONCE after projectSchema.sql
--- ─────────────────────────────────────────────
-
 -- ═══════════════════════════════════════════════
 -- Delete User with Full Cascade Cleanup
 -- Usage: CALL sp_delete_user(42);

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ListPlus } from 'lucide-react'
 import { getAuthToken, getStoredAuth } from '../utils/auth'
 
 const API_BASE = 'http://localhost:3000'
@@ -118,35 +119,53 @@ function ListsPage() {
             </div>
 
             {user ? (
-                <section className="panel lists-create-panel" style={{ marginBottom: '1.25rem' }}>
-                    <h3>Create New List</h3>
-                    <form onSubmit={handleCreateList} className="lists-create-form">
-                        <input
-                            type="text"
-                            placeholder="My Favorite Titles"
-                            value={newListName}
-                            onChange={(event) => setNewListName(event.target.value)}
-                        />
+                <section className="lists-create-wrap">
+                    <article className="lists-create-card">
+                        <header className="lists-create-head">
+                            <h3>
+                                <ListPlus size={18} aria-hidden="true" />
+                                Create New List
+                            </h3>
+                            <p>Start a clean collection and choose whether others can view it.</p>
+                        </header>
 
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <form onSubmit={handleCreateList} className="lists-create-form">
+                            <label className="lists-field-label" htmlFor="new-list-name">List Name</label>
                             <input
-                                type="checkbox"
-                                checked={isPublic}
-                                onChange={(event) => setIsPublic(event.target.checked)}
+                                id="new-list-name"
+                                type="text"
+                                placeholder="My favorite titles"
+                                value={newListName}
+                                onChange={(event) => setNewListName(event.target.value)}
                             />
-                            Make this list public
-                        </label>
 
-                        <button type="submit" className="btn btn-primary" disabled={submitting}>
-                            {submitting ? 'Creating...' : 'Create List'}
-                        </button>
-                    </form>
+                            <label className="lists-checkbox-row">
+                                <input
+                                    type="checkbox"
+                                    checked={isPublic}
+                                    onChange={(event) => setIsPublic(event.target.checked)}
+                                />
+                                <span>Make this list public</span>
+                            </label>
+
+                            <button type="submit" className="lists-create-submit" disabled={submitting}>
+                                {submitting ? 'Creating...' : 'Create List'}
+                            </button>
+                        </form>
+                    </article>
                 </section>
             ) : (
                 <p className="status">Please <Link to="/login">login</Link> to create your own lists.</p>
             )}
 
-            {loading && <p className="status">Loading lists...</p>}
+            <div className="lists-divider" aria-hidden="true" />
+
+            {loading && (
+                <div className="lists-loading" role="status" aria-live="polite">
+                    <span className="lists-spinner" aria-hidden="true" />
+                    <span>Loading lists...</span>
+                </div>
+            )}
             {error && <p className="status error">{error}</p>}
 
             {!loading && !error && user && (

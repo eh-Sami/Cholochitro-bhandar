@@ -1,19 +1,6 @@
--- ─────────────────────────────────────────────
--- UTILITY FUNCTIONS
--- Run ONCE after projectSchema.sql
--- ─────────────────────────────────────────────
-
--- ═══════════════════════════════════════════════
--- Auto-set EditedAt on UPDATE
--- Only triggers when CONTENT fields change,
--- NOT when vote counts or other metadata change.
--- ═══════════════════════════════════════════════
-
 CREATE OR REPLACE FUNCTION fn_set_edited_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Only update EditedAt when actual content is edited,
-    -- not when vote counts or other counters change.
     IF TG_TABLE_NAME = 'blog' THEN
         IF NEW.BlogTitle IS DISTINCT FROM OLD.BlogTitle
            OR NEW.Content IS DISTINCT FROM OLD.Content THEN
